@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #171914;
+  --color-muted: #74786d;
+  --color-paper: #e8e5da;
+  --color-panel: #20231e;
+  --color-panel-line: #3b3f36;
+  --color-acid: #d8ff3e;
+  --color-orange: #ff6b35;
+  --color-cyan: #62d9d0;
+  --color-danger: #ff5c57;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+  --font-display: "Avenir Next Condensed", "DIN Condensed", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background:
+    linear-gradient(rgba(23, 25, 20, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 25, 20, 0.035) 1px, transparent 1px),
+    #e8e5da;
+  background-size: 24px 24px;
+  font-family: var(--font-mono);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag,
+.no-drag * {
+  -webkit-app-region: no-drag;
+}
+
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes log-in {
+  from { opacity: 0; transform: translateX(-5px); }
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5045;
+}
+
+::-webkit-scrollbar-track {
+  background: #181a16;
+}
