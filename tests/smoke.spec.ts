@@ -151,9 +151,10 @@ test.describe('Genshin Chrome smoke tests', () => {
   test('keeps only navigation, address, and debugging controls', async () => {
     await expect(shell.getByRole('button', { name: '后退' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '前进' })).toBeVisible()
+    await expect(shell.getByRole('button', { name: '刷新' })).toBeVisible()
     await expect(shell.getByLabel('网页地址')).toBeVisible()
     await expect(shell.getByRole('button', { name: '打开调试' })).toBeVisible()
-    await expect(shell.locator('button')).toHaveCount(3)
+    await expect(shell.locator('button')).toHaveCount(4)
     await expect(shell.locator('textarea, [role=switch], aside')).toHaveCount(0)
     await expect(shell.getByLabel('网页地址')).toHaveValue(`${sourceServer.url}/page-a`)
   })
@@ -176,6 +177,10 @@ test.describe('Genshin Chrome smoke tests', () => {
     await address.fill(`${sourceServer.url}/page-b`)
     await address.press('Enter')
     await expect.poll(() => pageBHits).toBeGreaterThan(pageBHitsBeforeNavigation)
+    await waitForTarget(`${sourceServer.url}/page-b`)
+    const pageBHitsBeforeReload = pageBHits
+    await shell.getByRole('button', { name: '刷新' }).click()
+    await expect.poll(() => pageBHits).toBeGreaterThan(pageBHitsBeforeReload)
     await waitForTarget(`${sourceServer.url}/page-b`)
     await expect(shell.getByRole('button', { name: '后退' })).toBeEnabled()
     await shell.getByRole('button', { name: '后退' }).click()

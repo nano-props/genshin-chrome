@@ -11,8 +11,7 @@
   },
   "scripts": {
     "start": "bun run dev",
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"bun run dev:electron\"",
-    "dev:electron": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "dev": "./dev.sh",
     "build": "vite build",
     "preview": "electron .",
     "format": "prettier --write .",

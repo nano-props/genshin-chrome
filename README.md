@@ -1,6 +1,6 @@
 # Genshin Chrome
 
-A minimal Electron browser shell driven by a local TypeScript configuration. The interface only contains Back, Forward, the address bar, and a button that opens the target page's DevTools.
+A minimal Electron browser shell driven by a local TypeScript configuration. The interface only contains Back, Forward, Reload, the address bar, and a button that opens the target page's DevTools.
 
 ## Setup
 

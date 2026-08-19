@@ -31,7 +31,7 @@ button {
 .browser-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 68px minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr);
   background: #f5f5f7;
 }
 
@@ -39,11 +39,11 @@ button {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 76px minmax(220px, 720px) 76px;
+  grid-template-columns: 102px minmax(220px, 720px) 34px;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 0 18px 0 86px;
+  gap: 10px;
+  padding: 0 12px 0 78px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   background: rgba(246, 246, 248, 0.78);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.62) inset;
@@ -59,7 +59,7 @@ button {
 .navigation-controls {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 2px;
 }
 
 .debug-control {
@@ -68,12 +68,12 @@ button {
 
 .toolbar-button {
   display: grid;
-  width: 34px;
-  height: 30px;
+  width: 32px;
+  height: 28px;
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   color: #3a3a3c;
   background: transparent;
   cursor: default;
@@ -84,8 +84,8 @@ button {
 }
 
 .toolbar-button svg {
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.65;
@@ -111,13 +111,13 @@ button {
 .address-field {
   position: relative;
   display: flex;
-  height: 34px;
+  height: 30px;
   min-width: 0;
   align-items: center;
-  padding: 0 13px;
+  padding: 0 11px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(0, 0, 0, 0.055);
   box-shadow:
     0 1px 1px rgba(255, 255, 255, 0.68),
@@ -145,7 +145,7 @@ button {
   font-size: 13px;
   line-height: 1;
   letter-spacing: -0.01em;
-  text-align: center;
+  text-align: left;
 }
 
 .address-field input::selection {
@@ -189,10 +189,10 @@ button {
 
 @media (max-width: 760px) {
   .toolbar {
-    grid-template-columns: 74px minmax(160px, 1fr) 38px;
-    gap: 8px;
-    padding-right: 10px;
-    padding-left: 76px;
+    grid-template-columns: 98px minmax(160px, 1fr) 32px;
+    gap: 6px;
+    padding-right: 8px;
+    padding-left: 72px;
   }
 }
 

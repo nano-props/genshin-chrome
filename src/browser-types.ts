@@ -5,7 +5,7 @@ export const browserChannels = {
   state: 'browser:state',
 } as const
 
-export type BrowserAction = 'back' | 'forward' | 'devtools'
+export type BrowserAction = 'back' | 'forward' | 'reload' | 'devtools'
 
 export type BrowserState = {
   url: string

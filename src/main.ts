@@ -7,6 +7,7 @@ import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
+const appIconPath = path.join(projectRoot, 'resources', 'app-icon.png')
 const configDirectory = process.env.GENSHIN_CHROME_CONFIG_DIR
   ? path.resolve(process.env.GENSHIN_CHROME_CONFIG_DIR)
   : path.join(projectRoot, 'config')
@@ -136,9 +137,10 @@ function sendNavigationState() {
 async function createWindow() {
   mainWindow = new BrowserWindow({
     ...config.window,
+    icon: appIconPath,
     show: false,
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 18, y: 22 },
+    trafficLightPosition: { x: 18, y: 18 },
     ...(process.platform === 'darwin' ? { vibrancy: 'under-window', visualEffectState: 'active' } : {}),
     webPreferences: {
       preload: path.join(currentDirectory, 'preload.ts'),
@@ -208,6 +210,7 @@ ipcMain.on(browserChannels.action, (_event: Electron.IpcMainEvent, action: Brows
   const history = view.webContents.navigationHistory
   if (action === 'back' && history.canGoBack()) history.goBack()
   if (action === 'forward' && history.canGoForward()) history.goForward()
+  if (action === 'reload') view.webContents.reload()
   if (action === 'devtools') {
     if (view.webContents.isDevToolsOpened()) view.webContents.closeDevTools()
     else view.webContents.openDevTools({ mode: config.browser.devToolsMode })
@@ -225,6 +228,7 @@ ipcMain.on(browserChannels.bounds, (_event: Electron.IpcMainEvent, bounds: ViewB
 })
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin') app.dock!.setIcon(appIconPath)
   void createWindow().catch(failFast)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow().catch(failFast)

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { browserChannels } from '#/browser-types.ts'
-import type { BrowserState, Workbench } from '#/browser-types.ts'
+import type { BrowserAction, BrowserState, Workbench } from '#/browser-types.ts'
 
 type Listener<T> = (payload: T) => void
 
@@ -12,7 +12,7 @@ function subscribe<T>(channel: string, listener: Listener<T>) {
 
 const workbench: Workbench = {
   navigate: (url: string) => ipcRenderer.invoke(browserChannels.navigate, url),
-  browserAction: (action: 'back' | 'forward' | 'devtools') => ipcRenderer.send(browserChannels.action, action),
+  browserAction: (action: BrowserAction) => ipcRenderer.send(browserChannels.action, action),
   updateViewBounds: (bounds: Electron.Rectangle) => ipcRenderer.send(browserChannels.bounds, bounds),
   onBrowserState: (listener: Listener<BrowserState>) => subscribe(browserChannels.state, listener),
 }

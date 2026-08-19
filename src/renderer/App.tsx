@@ -13,6 +13,13 @@ const ChevronRight = () => (
   </svg>
 )
 
+const Reload = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <path d="M15.4 7.2A6 6 0 1 0 16 11" />
+    <path d="M15.4 3.8v3.8h-3.8" />
+  </svg>
+)
+
 const Wrench = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true">
     <path d="M11.9 4.3a4 4 0 0 0-4.8 5.1l-4 4a1.7 1.7 0 0 0 2.4 2.4l4-4a4 4 0 0 0 5.1-4.8l-2.3 2.3-1.7-.4-.4-1.7 2.3-2.3a4 4 0 0 0-.6-.6Z" />
@@ -118,6 +125,9 @@ export default defineComponent({
               onPress={() => window.workbench.browserAction('forward')}
             >
               <ChevronRight />
+            </IconButton>
+            <IconButton label="刷新" onPress={() => window.workbench.browserAction('reload')}>
+              <Reload />
             </IconButton>
           </nav>
 
