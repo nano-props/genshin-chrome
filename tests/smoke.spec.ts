@@ -1,14 +1,12 @@
 import fs from 'node:fs'
-import { spawn } from 'node:child_process'
 import http, { type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { ensureLocalConfig, resolveLocalConfigPaths } from '#/local-config.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const electronPath = createRequire(import.meta.url)('electron') as string
 
 type TestServer = {
   server: Server
@@ -45,6 +43,7 @@ test.describe('Genshin Chrome smoke tests', () => {
   let pageAHits = 0
   let pageBHits = 0
   let temporaryDirectory: string
+  let configHome: string
   let configDirectory: string
 
   async function waitForTarget(url: string) {
@@ -97,10 +96,12 @@ test.describe('Genshin Chrome smoke tests', () => {
     })
 
     temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'genshin-chrome-smoke-'))
-    configDirectory = path.join(temporaryDirectory, 'config')
-    fs.mkdirSync(configDirectory)
+    configHome = path.join(temporaryDirectory, 'xdg')
+    configDirectory = path.join(configHome, 'genshin-chrome')
+    fs.mkdirSync(configDirectory, { recursive: true })
+    fs.writeFileSync(path.join(configDirectory, 'package.json'), '{"type":"module"}\n')
     fs.writeFileSync(
-      path.join(configDirectory, 'config.ts'),
+      path.join(configDirectory, 'config.js'),
       `
       export default {
         startUrl: ${JSON.stringify(`${sourceServer.url}/page-a`)},
@@ -114,7 +115,7 @@ test.describe('Genshin Chrome smoke tests', () => {
         },
         requests: {
           enabled: true,
-          rewrite(request: { url: string }) {
+          rewrite(request) {
             if (request.url.endsWith("/api-data")) {
               return { url: ${JSON.stringify(`${replacementServer.url}/rewritten`)} };
             }
@@ -130,7 +131,7 @@ test.describe('Genshin Chrome smoke tests', () => {
       cwd: projectRoot,
       env: {
         ...process.env,
-        GENSHIN_CHROME_CONFIG_DIR: configDirectory,
+        XDG_CONFIG_HOME: configHome,
         GENSHIN_CHROME_USER_DATA_DIR: path.join(temporaryDirectory, 'user-data'),
       },
     })
@@ -152,9 +153,10 @@ test.describe('Genshin Chrome smoke tests', () => {
     await expect(shell.getByRole('button', { name: '后退' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '前进' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '刷新' })).toBeVisible()
+    await expect(shell.getByRole('button', { name: '打开配置' })).toBeVisible()
     await expect(shell.getByLabel('网页地址')).toBeVisible()
     await expect(shell.getByRole('button', { name: '打开调试' })).toBeVisible()
-    await expect(shell.locator('button')).toHaveCount(4)
+    await expect(shell.locator('button')).toHaveCount(5)
     await expect(shell.locator('textarea, [role=switch], aside')).toHaveCount(0)
     await expect(shell.getByLabel('网页地址')).toHaveValue(`${sourceServer.url}/page-a`)
   })
@@ -223,29 +225,36 @@ test.describe('Genshin Chrome smoke tests', () => {
       )
       .toBe(true)
   })
-})
 
-test('exits with an error when the local configuration is missing', async () => {
-  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'genshin-chrome-missing-config-'))
-
-  try {
-    const result = await new Promise<{ code: number | null; stderr: string }>((resolve, reject) => {
-      const child = spawn(electronPath, [projectRoot], {
-        cwd: projectRoot,
-        env: {
-          ...process.env,
-          GENSHIN_CHROME_CONFIG_DIR: path.join(temporaryDirectory, 'missing'),
-          GENSHIN_CHROME_USER_DATA_DIR: path.join(temporaryDirectory, 'user-data'),
-        },
-      })
-      let stderr = ''
-      child.stderr.on('data', (chunk) => (stderr += String(chunk)))
-      child.on('error', reject)
-      child.on('close', (code) => resolve({ code, stderr }))
+  test('opens the XDG configuration in the default editor', async () => {
+    await app.evaluate(({ shell }) => {
+      shell.openPath = async (targetPath) => {
+        ;(globalThis as typeof globalThis & { openedConfigPath?: string }).openedConfigPath = targetPath
+        return ''
+      }
     })
 
-    expect(result.code).toBe(1)
-    expect(result.stderr).toContain('ERR_MODULE_NOT_FOUND')
+    await shell.getByRole('button', { name: '打开配置' }).click()
+    await expect
+      .poll(() =>
+        app.evaluate(() => (globalThis as typeof globalThis & { openedConfigPath?: string }).openedConfigPath),
+      )
+      .toBe(path.join(configDirectory, 'config.js'))
+  })
+})
+
+test('creates the default ESM configuration once', () => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'genshin-chrome-default-config-'))
+
+  try {
+    const paths = resolveLocalConfigPaths(temporaryDirectory)
+    ensureLocalConfig(paths)
+    expect(fs.readFileSync(paths.package, 'utf8')).toContain('"type": "module"')
+    expect(fs.readFileSync(paths.config, 'utf8')).toContain('export default')
+
+    fs.writeFileSync(paths.config, 'export default { custom: true }\n')
+    ensureLocalConfig(paths)
+    expect(fs.readFileSync(paths.config, 'utf8')).toBe('export default { custom: true }\n')
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true })
   }

@@ -20,6 +20,13 @@ const Reload = () => (
   </svg>
 )
 
+const Sliders = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <path d="M4 5.5h4m3 0h5M4 10h8m3 0h1M4 14.5h2m3 0h7" />
+    <path d="M8 3.8v3.4M12 8.3v3.4M6 12.8v3.4" />
+  </svg>
+)
+
 const Wrench = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true">
     <path d="M11.9 4.3a4 4 0 0 0-4.8 5.1l-4 4a1.7 1.7 0 0 0 2.4 2.4l4-4a4 4 0 0 0 5.1-4.8l-2.3 2.3-1.7-.4-.4-1.7 2.3-2.3a4 4 0 0 0-.6-.6Z" />
@@ -128,6 +135,9 @@ export default defineComponent({
             </IconButton>
             <IconButton label="刷新" onPress={() => window.workbench.browserAction('reload')}>
               <Reload />
+            </IconButton>
+            <IconButton label="打开配置" onPress={() => window.workbench.browserAction('open-config')}>
+              <Sliders />
             </IconButton>
           </nav>
 

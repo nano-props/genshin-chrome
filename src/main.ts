@@ -1,17 +1,16 @@
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { app, BrowserWindow, WebContentsView, ipcMain, session } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'electron'
 import type { AppConfig } from '#/config-types.ts'
 import { browserChannels } from '#/browser-types.ts'
 import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts'
+import { ensureLocalConfig } from '#/local-config.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
 const appIconPath = path.join(projectRoot, 'resources', 'app-icon.png')
-const configDirectory = process.env.GENSHIN_CHROME_CONFIG_DIR
-  ? path.resolve(process.env.GENSHIN_CHROME_CONFIG_DIR)
-  : path.join(projectRoot, 'config')
-const configUrl = pathToFileURL(path.join(configDirectory, 'config.ts')).href
+const configPath = ensureLocalConfig().config
+const configUrl = pathToFileURL(configPath).href
 
 async function loadConfig() {
   try {
@@ -100,6 +99,11 @@ function loadTarget(address: string) {
 
 function reportError(error: unknown) {
   console.error(error)
+}
+
+async function openConfig() {
+  const error = await shell.openPath(configPath)
+  if (error) throw new Error(error)
 }
 
 function failFast(error: unknown) {
@@ -206,6 +210,11 @@ ipcMain.handle(browserChannels.navigate, (_event: Electron.IpcMainInvokeEvent, a
 })
 
 ipcMain.on(browserChannels.action, (_event: Electron.IpcMainEvent, action: BrowserAction) => {
+  if (action === 'open-config') {
+    void openConfig().catch(failFast)
+    return
+  }
+
   const view = currentPageView()
   const history = view.webContents.navigationHistory
   if (action === 'back' && history.canGoBack()) history.goBack()

@@ -15,5 +15,5 @@
       "#/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "config/**/*.ts", "vite.config.ts", "config.example.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "electron-builder.ts", "install.ts", "vite.config.ts"]
 }

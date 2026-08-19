@@ -39,7 +39,7 @@ button {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 102px minmax(220px, 720px) 34px;
+  grid-template-columns: 134px minmax(220px, 720px) 34px;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -189,7 +189,7 @@ button {
 
 @media (max-width: 760px) {
   .toolbar {
-    grid-template-columns: 98px minmax(160px, 1fr) 32px;
+    grid-template-columns: 130px minmax(160px, 1fr) 32px;
     gap: 6px;
     padding-right: 8px;
     padding-left: 72px;
