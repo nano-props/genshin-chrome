@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { ensureLocalConfig, resolveLocalConfigPaths } from '#/local-config.ts'
+import { ensureLocalConfig, resolveAppConfig, resolveLocalConfigPaths } from '#/local-config.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -313,4 +313,62 @@ test('creates the default ESM configuration once', () => {
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true })
   }
+})
+
+test('fills optional config fields from defaults', () => {
+  const config = resolveAppConfig({ startUrl: 'https://example.com' })
+
+  expect(config).toMatchObject({
+    startUrl: 'https://example.com',
+    session: { partition: 'persist:genshin-chrome', cache: true },
+    window: {
+      width: 1280,
+      height: 820,
+      minWidth: 680,
+      minHeight: 480,
+      backgroundColor: '#f5f5f7',
+    },
+    browser: {
+      allowedProtocols: ['http:', 'https:'],
+      allowRunningInsecureContent: false,
+      devToolsMode: 'detach',
+      remoteDebuggingPort: 9222,
+    },
+    requests: { enabled: false },
+  })
+  expect(
+    config.requests.rewrite({
+      id: 1,
+      url: 'https://example.com',
+      method: 'GET',
+      resourceType: 'mainFrame',
+      timestamp: 0,
+    }),
+  ).toBeNull()
+})
+
+test('merges partial config groups without replacing their defaults', () => {
+  const rewrite = () => ({ cancel: true })
+  const config = resolveAppConfig({
+    startUrl: 'https://example.com',
+    window: { width: 1440 },
+    browser: { remoteDebuggingPort: null },
+    requests: { enabled: true, rewrite },
+  })
+
+  expect(config.window).toEqual({
+    width: 1440,
+    height: 820,
+    minWidth: 680,
+    minHeight: 480,
+    backgroundColor: '#f5f5f7',
+  })
+  expect(config.browser.remoteDebuggingPort).toBeNull()
+  expect(config.browser.allowedProtocols).toEqual(['http:', 'https:'])
+  expect(config.requests).toEqual({ enabled: true, rewrite })
+})
+
+test('requires a non-empty startUrl', () => {
+  expect(() => resolveAppConfig({})).toThrow('config.js 必须配置 startUrl')
+  expect(() => resolveAppConfig({ startUrl: '   ' })).toThrow('config.js 的 startUrl 必须是非空字符串')
 })

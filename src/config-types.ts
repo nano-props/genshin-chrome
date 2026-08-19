@@ -30,3 +30,10 @@ export type AppConfig = {
     rewrite: (request: RewriteRequest) => RewriteResult
   }
 }
+
+export type AppConfigSource = Pick<AppConfig, 'startUrl'> & {
+  session?: Partial<AppConfig['session']>
+  window?: Partial<AppConfig['window']>
+  browser?: Partial<AppConfig['browser']>
+  requests?: Partial<AppConfig['requests']>
+}

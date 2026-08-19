@@ -4,4 +4,4 @@ release/
 test-results/
 playwright-report/
 .DS_Store
-config/
+.env

@@ -21,6 +21,8 @@ Set `XDG_CONFIG_HOME` to change the configuration root. Use the toolbar button t
 
 Edit the generated object directly. Its synchronous `rewrite` hook may return `null`, `{ url }`, or `{ cancel: true }`. The configuration is fully trusted and errors fail when encountered.
 
+Only `startUrl` is required. The `session`, `window`, `browser`, and `requests` groups—and every field inside them—are optional and merge with the generated defaults.
+
 ## Install
 
 Build and install `Genshin Chrome.app` into `~/Applications`:

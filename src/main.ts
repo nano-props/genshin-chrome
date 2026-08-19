@@ -1,10 +1,9 @@
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'electron'
-import type { AppConfig } from '#/config-types.ts'
 import { browserChannels } from '#/browser-types.ts'
 import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts'
-import { ensureLocalConfig } from '#/local-config.ts'
+import { ensureLocalConfig, resolveAppConfig } from '#/local-config.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
@@ -13,7 +12,7 @@ const configUrl = pathToFileURL(configPath).href
 
 async function loadConfig() {
   try {
-    return (await import(configUrl)).default as AppConfig
+    return resolveAppConfig((await import(configUrl)).default)
   } catch (error) {
     failFast(error)
     throw error
