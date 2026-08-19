@@ -89,11 +89,13 @@ function currentPageView() {
   return pageView
 }
 
-function loadTarget(address: string) {
+function loadTargetInView(targetView: InstanceType<typeof WebContentsView>, address: string) {
   const url = normalizeAddress(address)
-  return currentPageView()
-    .webContents.loadURL(url)
-    .then(() => url)
+  return targetView.webContents.loadURL(url).then(() => url)
+}
+
+function loadTarget(address: string) {
+  return loadTargetInView(currentPageView(), address)
 }
 
 function reportError(error: unknown) {
@@ -110,9 +112,9 @@ function failFast(error: unknown) {
   app.exit(1)
 }
 
-function loadRemoteTarget(address: string) {
+function loadRemoteTarget(address: string, targetView: InstanceType<typeof WebContentsView>) {
   try {
-    void loadTarget(address).catch(reportError)
+    void loadTargetInView(targetView, address).catch(reportError)
   } catch (error) {
     reportError(error)
   }
@@ -124,23 +126,26 @@ function loadShell(window: InstanceType<typeof BrowserWindow>) {
     : window.loadFile(path.join(projectRoot, 'dist', 'index.html'))
 }
 
-function sendNavigationState() {
-  if (!pageView || pageView.webContents.isDestroyed()) return
-  const history = pageView.webContents.navigationHistory
+function sendNavigationState(
+  targetView: InstanceType<typeof WebContentsView>,
+  targetWindow: InstanceType<typeof BrowserWindow>,
+) {
+  if (targetView.webContents.isDestroyed() || targetWindow.isDestroyed()) return
+  const history = targetView.webContents.navigationHistory
 
   const state: BrowserState = {
-    url: pageView.webContents.getURL(),
-    loading: pageView.webContents.isLoading(),
+    url: targetView.webContents.getURL(),
+    loading: targetView.webContents.isLoading(),
     canGoBack: history.canGoBack(),
     canGoForward: history.canGoForward(),
   }
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(browserChannels.state, state)
+  targetWindow.webContents.send(browserChannels.state, state)
 }
 
 async function createWindow() {
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     ...config.window,
-    show: false,
+    show: true,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
     ...(process.platform === 'darwin' ? { vibrancy: 'under-window', visualEffectState: 'active' } : {}),
@@ -152,13 +157,14 @@ async function createWindow() {
       sandbox: false,
     },
   })
+  mainWindow = window
 
   const targetSession = session.fromPartition(config.session.partition, {
     cache: config.session.cache,
   })
   installRequestInterceptor(targetSession)
 
-  pageView = new WebContentsView({
+  const targetView = new WebContentsView({
     webPreferences: {
       partition: config.session.partition,
       contextIsolation: true,
@@ -167,12 +173,13 @@ async function createWindow() {
       allowRunningInsecureContent: config.browser.allowRunningInsecureContent,
     },
   })
+  pageView = targetView
 
-  mainWindow.contentView.addChildView(pageView)
-  pageView.setBackgroundColor(config.window.backgroundColor)
+  window.contentView.addChildView(targetView)
+  targetView.setBackgroundColor(config.window.backgroundColor)
 
-  pageView.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
-    loadRemoteTarget(url)
+  targetView.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
+    loadRemoteTarget(url, targetView)
     return { action: 'deny' }
   })
 
@@ -185,22 +192,36 @@ async function createWindow() {
     }
   }
 
-  pageView.webContents.on('will-navigate', preventUnsafeNavigation)
-  pageView.webContents.on('will-redirect', preventUnsafeNavigation)
-  pageView.webContents.on('did-start-loading', sendNavigationState)
-  pageView.webContents.on('did-stop-loading', sendNavigationState)
-  pageView.webContents.on('did-navigate', sendNavigationState)
-  pageView.webContents.on('did-navigate-in-page', sendNavigationState)
+  targetView.webContents.on('will-navigate', preventUnsafeNavigation)
+  targetView.webContents.on('will-redirect', preventUnsafeNavigation)
+  const reportNavigationState = () => sendNavigationState(targetView, window)
+  targetView.webContents.on('did-start-loading', reportNavigationState)
+  targetView.webContents.on('did-stop-loading', reportNavigationState)
+  targetView.webContents.on('did-navigate', reportNavigationState)
+  targetView.webContents.on('did-navigate-in-page', reportNavigationState)
 
-  mainWindow.on('closed', () => {
-    if (pageView && !pageView.webContents.isDestroyed()) pageView.webContents.close()
-    mainWindow = null
-    pageView = null
+  window.on('closed', () => {
+    if (!targetView.webContents.isDestroyed()) targetView.webContents.close()
+    if (mainWindow === window) {
+      mainWindow = null
+      pageView = null
+    }
   })
 
-  await loadShell(mainWindow)
-  await loadTarget(config.startUrl)
-  mainWindow.show()
+  await loadShell(window)
+  if (window.isDestroyed()) return
+
+  loadRemoteTarget(config.startUrl, targetView)
+}
+
+function revealMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return false
+
+  if (process.platform === 'darwin' && app.isHidden()) app.show()
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  if (!mainWindow.isVisible()) mainWindow.show()
+  mainWindow.focus()
+  return true
 }
 
 ipcMain.handle(browserChannels.navigate, (_event: Electron.IpcMainInvokeEvent, address: unknown) => {
@@ -237,7 +258,7 @@ ipcMain.on(browserChannels.bounds, (_event: Electron.IpcMainEvent, bounds: ViewB
 app.whenReady().then(() => {
   void createWindow().catch(failFast)
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow().catch(failFast)
+    if (!revealMainWindow()) void createWindow().catch(failFast)
   })
 })
 

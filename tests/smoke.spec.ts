@@ -42,6 +42,8 @@ test.describe('Genshin Chrome smoke tests', () => {
   let replacementHits = 0
   let pageAHits = 0
   let pageBHits = 0
+  let slowStartCompleted = false
+  let windowVisibleWhileStartPending = false
   let temporaryDirectory: string
   let configHome: string
   let configDirectory: string
@@ -75,6 +77,13 @@ test.describe('Genshin Chrome smoke tests', () => {
     })
 
     sourceServer = await startServer((request, response) => {
+      if (request.url === '/slow-start') {
+        setTimeout(() => {
+          slowStartCompleted = true
+          html(response, '<!doctype html><title>Slow start fixture</title>')
+        }, 1_500)
+        return
+      }
       if (request.url === '/rewrite-page') {
         html(
           response,
@@ -104,7 +113,7 @@ test.describe('Genshin Chrome smoke tests', () => {
       path.join(configDirectory, 'config.js'),
       `
       export default {
-        startUrl: ${JSON.stringify(`${sourceServer.url}/page-a`)},
+        startUrl: ${JSON.stringify(`${sourceServer.url}/slow-start`)},
         session: { partition: "persist:genshin-chrome-test", cache: false },
         window: { width: 900, height: 640, minWidth: 680, minHeight: 480, backgroundColor: "#f5f5f7" },
         browser: {
@@ -140,6 +149,10 @@ test.describe('Genshin Chrome smoke tests', () => {
       .toEqual(expect.arrayContaining([expect.stringContaining('dist/index.html')]))
     shell = app.windows().find((page) => page.url().includes('dist/index.html'))!
     await shell.waitForLoadState('domcontentloaded')
+    windowVisibleWhileStartPending = await app.evaluate(({ BrowserWindow }) => {
+      return BrowserWindow.getAllWindows().some((window) => window.isVisible())
+    })
+    await waitForTarget(`${sourceServer.url}/slow-start`)
   })
 
   test.afterAll(async () => {
@@ -150,6 +163,8 @@ test.describe('Genshin Chrome smoke tests', () => {
   })
 
   test('keeps only navigation, address, and debugging controls', async () => {
+    expect(windowVisibleWhileStartPending).toBe(true)
+    expect(slowStartCompleted).toBe(true)
     await expect(shell.getByRole('button', { name: '后退' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '前进' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '刷新' })).toBeVisible()
@@ -158,7 +173,47 @@ test.describe('Genshin Chrome smoke tests', () => {
     await expect(shell.getByRole('button', { name: '打开调试' })).toBeVisible()
     await expect(shell.locator('button')).toHaveCount(5)
     await expect(shell.locator('textarea, [role=switch], aside')).toHaveCount(0)
-    await expect(shell.getByLabel('网页地址')).toHaveValue(`${sourceServer.url}/page-a`)
+    await expect(shell.getByLabel('网页地址')).toHaveValue(`${sourceServer.url}/slow-start`)
+  })
+
+  test('restores the existing window when the Dock activates the app', async () => {
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => !window.webContents.isDevToolsOpened())
+        ?.minimize()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((window) => window.isMinimized())),
+      )
+      .toBe(true)
+
+    await app.evaluate(({ app }) => app.emit('activate', {} as Electron.Event, false))
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().some((window) => window.isVisible() && !window.isMinimized()),
+        ),
+      )
+      .toBe(true)
+
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => !window.webContents.isDevToolsOpened())
+        ?.hide()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((window) => !window.isVisible())),
+      )
+      .toBe(true)
+
+    await app.evaluate(({ app }) => app.emit('activate', {} as Electron.Event, false))
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((window) => window.isVisible())),
+      )
+      .toBe(true)
   })
 
   test('navigates, rewrites requests, and opens DevTools', async () => {
