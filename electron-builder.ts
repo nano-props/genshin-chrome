@@ -3,7 +3,7 @@ import type { Configuration } from 'electron-builder'
 const config: Configuration = {
   appId: 'nano.genshinchrome',
   productName: 'Genshin Chrome',
-  icon: 'resources/app-icon.icns',
+  icon: 'resources/app-icon.png',
   directories: {
     output: 'release',
   },

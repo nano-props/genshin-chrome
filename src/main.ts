@@ -8,7 +8,6 @@ import { ensureLocalConfig } from '#/local-config.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
-const appIconPath = path.join(projectRoot, 'resources', 'app-icon.png')
 const configPath = ensureLocalConfig().config
 const configUrl = pathToFileURL(configPath).href
 
@@ -141,7 +140,6 @@ function sendNavigationState() {
 async function createWindow() {
   mainWindow = new BrowserWindow({
     ...config.window,
-    icon: appIconPath,
     show: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
@@ -237,7 +235,6 @@ ipcMain.on(browserChannels.bounds, (_event: Electron.IpcMainEvent, bounds: ViewB
 })
 
 app.whenReady().then(() => {
-  if (process.platform === 'darwin') app.dock!.setIcon(appIconPath)
   void createWindow().catch(failFast)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow().catch(failFast)
