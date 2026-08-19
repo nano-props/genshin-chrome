@@ -1,6 +1,7 @@
 export const browserChannels = {
   navigate: 'browser:navigate',
   action: 'browser:action',
+  editAddress: 'address:edit',
   bounds: 'view:bounds',
   state: 'browser:state',
 } as const
@@ -25,5 +26,6 @@ export type Workbench = {
   navigate(url: string): Promise<string>
   browserAction(action: BrowserAction): void
   updateViewBounds(bounds: ViewBounds): void
+  onEditAddress(listener: () => void): () => void
   onBrowserState(listener: (state: BrowserState) => void): () => void
 }

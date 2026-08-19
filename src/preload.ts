@@ -14,6 +14,7 @@ const workbench: Workbench = {
   navigate: (url: string) => ipcRenderer.invoke(browserChannels.navigate, url),
   browserAction: (action: BrowserAction) => ipcRenderer.send(browserChannels.action, action),
   updateViewBounds: (bounds: Electron.Rectangle) => ipcRenderer.send(browserChannels.bounds, bounds),
+  onEditAddress: (listener: () => void) => subscribe<void>(browserChannels.editAddress, listener),
   onBrowserState: (listener: Listener<BrowserState>) => subscribe(browserChannels.state, listener),
 }
 

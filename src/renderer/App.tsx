@@ -1,37 +1,6 @@
-import { defineComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ChevronLeft, ChevronRight, RotateCw, SlidersHorizontal, Wrench } from '@lucide/vue'
+import { defineComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { BrowserState } from '#/browser-types.ts'
-
-const ChevronLeft = () => (
-  <svg viewBox="0 0 20 20" aria-hidden="true">
-    <path d="m12.3 4.4-5.5 5.6 5.5 5.6" />
-  </svg>
-)
-
-const ChevronRight = () => (
-  <svg viewBox="0 0 20 20" aria-hidden="true">
-    <path d="m7.7 4.4 5.5 5.6-5.5 5.6" />
-  </svg>
-)
-
-const Reload = () => (
-  <svg viewBox="0 0 20 20" aria-hidden="true">
-    <path d="M15.4 7.2A6 6 0 1 0 16 11" />
-    <path d="M15.4 3.8v3.8h-3.8" />
-  </svg>
-)
-
-const Sliders = () => (
-  <svg viewBox="0 0 20 20" aria-hidden="true">
-    <path d="M4 5.5h4m3 0h5M4 10h8m3 0h1M4 14.5h2m3 0h7" />
-    <path d="M8 3.8v3.4M12 8.3v3.4M6 12.8v3.4" />
-  </svg>
-)
-
-const Wrench = () => (
-  <svg viewBox="0 0 20 20" aria-hidden="true">
-    <path d="M11.9 4.3a4 4 0 0 0-4.8 5.1l-4 4a1.7 1.7 0 0 0 2.4 2.4l4-4a4 4 0 0 0 5.1-4.8l-2.3 2.3-1.7-.4-.4-1.7 2.3-2.3a4 4 0 0 0-.6-.6Z" />
-  </svg>
-)
 
 const IconButton = defineComponent({
   props: {
@@ -64,6 +33,8 @@ export default defineComponent({
     const loading = ref(false)
     const canGoBack = ref(false)
     const canGoForward = ref(false)
+    const addressButton = ref<HTMLButtonElement | null>(null)
+    const addressInput = ref<HTMLInputElement | null>(null)
     const viewport = ref<HTMLElement | null>(null)
     const cleanup: Array<() => void> = []
     let resizeObserver: ResizeObserver | undefined
@@ -81,21 +52,30 @@ export default defineComponent({
 
     async function navigate(event: Event) {
       event.preventDefault()
-      await window.workbench.navigate(draft.value)
-      ;(document.activeElement as HTMLElement | null)?.blur()
+      draft.value = await window.workbench.navigate(draft.value)
+      editingAddress.value = false
     }
 
-    function handleKeyboard(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'l') {
-        event.preventDefault()
-        const input = document.querySelector<HTMLInputElement>('#address-input')
-        input?.focus()
-        input?.select()
+    function editAddress() {
+      if (!editingAddress.value) {
+        draft.value = currentUrl.value
+        editingAddress.value = true
       }
+      void nextTick(() => {
+        addressInput.value?.focus()
+        addressInput.value?.select()
+      })
+    }
+
+    function closeAddressEditor(restoreButtonFocus = false) {
+      draft.value = currentUrl.value
+      editingAddress.value = false
+      if (restoreButtonFocus) void nextTick(() => addressButton.value?.focus())
     }
 
     onMounted(() => {
       cleanup.push(
+        window.workbench.onEditAddress(editAddress),
         window.workbench.onBrowserState((state: BrowserState) => {
           currentUrl.value = state.url
           if (!editingAddress.value && state.url) draft.value = state.url
@@ -108,7 +88,6 @@ export default defineComponent({
       resizeObserver = new ResizeObserver(updateViewportBounds)
       if (viewport.value) resizeObserver.observe(viewport.value)
       window.addEventListener('resize', updateViewportBounds)
-      document.addEventListener('keydown', handleKeyboard)
       requestAnimationFrame(updateViewportBounds)
     })
 
@@ -116,7 +95,6 @@ export default defineComponent({
       cleanup.forEach((unsubscribe) => unsubscribe())
       resizeObserver?.disconnect()
       window.removeEventListener('resize', updateViewportBounds)
-      document.removeEventListener('keydown', handleKeyboard)
     })
 
     return () => (
@@ -124,47 +102,61 @@ export default defineComponent({
         <header class="toolbar">
           <nav class="navigation-controls no-drag" aria-label="浏览器导航">
             <IconButton label="后退" disabled={!canGoBack.value} onPress={() => window.workbench.browserAction('back')}>
-              <ChevronLeft />
+              <ChevronLeft aria-hidden="true" />
             </IconButton>
             <IconButton
               label="前进"
               disabled={!canGoForward.value}
               onPress={() => window.workbench.browserAction('forward')}
             >
-              <ChevronRight />
+              <ChevronRight aria-hidden="true" />
             </IconButton>
             <IconButton label="刷新" onPress={() => window.workbench.browserAction('reload')}>
-              <Reload />
+              <RotateCw aria-hidden="true" />
             </IconButton>
           </nav>
 
-          <form class={['address-field no-drag', loading.value && 'is-loading']} onSubmit={navigate}>
-            <input
-              id="address-input"
-              value={draft.value}
-              aria-label="网页地址"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck={false}
-              onInput={(event) => (draft.value = (event.target as HTMLInputElement).value)}
-              onFocus={(event) => {
-                editingAddress.value = true
-                ;(event.target as HTMLInputElement).select()
-              }}
-              onBlur={() => {
-                editingAddress.value = false
-                draft.value = currentUrl.value
-              }}
-            />
+          <div class={['address-control no-drag', editingAddress.value && 'is-editing', loading.value && 'is-loading']}>
+            {editingAddress.value ? (
+              <form class="address-editor" onSubmit={navigate}>
+                <input
+                  ref={addressInput}
+                  id="address-input"
+                  value={draft.value}
+                  aria-label="网页地址"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck={false}
+                  onInput={(event) => (draft.value = (event.target as HTMLInputElement).value)}
+                  onBlur={() => closeAddressEditor()}
+                  onKeydown={(event) => {
+                    if (event.key !== 'Escape') return
+                    event.preventDefault()
+                    closeAddressEditor(true)
+                  }}
+                />
+              </form>
+            ) : (
+              <button
+                ref={addressButton}
+                class="address-display"
+                type="button"
+                aria-label={`编辑网页地址，当前地址：${currentUrl.value}`}
+                title={currentUrl.value}
+                onClick={editAddress}
+              >
+                {currentUrl.value}
+              </button>
+            )}
             <span class="loading-line" aria-hidden="true" />
-          </form>
+          </div>
 
           <div class="toolbar-actions no-drag">
             <IconButton label="打开调试" onPress={() => window.workbench.browserAction('devtools')}>
-              <Wrench />
+              <Wrench aria-hidden="true" />
             </IconButton>
             <IconButton label="打开配置" onPress={() => window.workbench.browserAction('open-config')}>
-              <Sliders />
+              <SlidersHorizontal aria-hidden="true" />
             </IconButton>
           </div>
         </header>

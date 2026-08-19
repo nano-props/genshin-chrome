@@ -108,13 +108,10 @@ button {
   outline-offset: 1px;
 }
 
-.address-field {
+.address-control {
   position: relative;
-  display: flex;
   height: 30px;
   min-width: 0;
-  align-items: center;
-  padding: 0 11px;
   overflow: hidden;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -126,7 +123,18 @@ button {
     box-shadow 150ms ease;
 }
 
-.address-field:focus-within {
+.address-control:not(.is-editing):hover {
+  border-color: rgba(0, 0, 0, 0.045);
+  background: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.38) inset;
+}
+
+.address-control:not(.is-editing):active {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.address-control:has(.address-display:focus-visible),
+.address-control.is-editing {
   border-color: rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.82);
   box-shadow:
@@ -134,7 +142,45 @@ button {
     0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.address-field input {
+.address-display,
+.address-editor {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 11px;
+  border: 0;
+  background: transparent;
+}
+
+.address-display {
+  display: block;
+  overflow: hidden;
+  color: rgba(60, 60, 67, 0.72);
+  font-size: 13px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+  transition: color 150ms ease;
+}
+
+.address-control:hover .address-display,
+.address-display:focus-visible {
+  color: rgba(29, 29, 31, 0.9);
+}
+
+.address-display:focus-visible {
+  outline: 0;
+}
+
+.address-editor {
+  display: flex;
+  align-items: center;
+}
+
+.address-editor input {
   width: 100%;
   min-width: 0;
   padding: 0;
@@ -145,21 +191,11 @@ button {
   font-size: 13px;
   line-height: 1;
   letter-spacing: -0.01em;
-  text-align: center;
-  text-overflow: ellipsis;
-  cursor: text;
-  transition: color 150ms ease;
-}
-
-.address-field:not(:focus-within) input {
-  color: rgba(60, 60, 67, 0.72);
-}
-
-.address-field:focus-within input {
   text-align: left;
+  cursor: text;
 }
 
-.address-field input::selection {
+.address-editor input::selection {
   background: rgba(0, 122, 255, 0.2);
 }
 
@@ -170,11 +206,12 @@ button {
   left: 0;
   height: 2px;
   opacity: 0;
+  pointer-events: none;
   background: #007aff;
   transform: translateX(-100%);
 }
 
-.address-field.is-loading .loading-line {
+.address-control.is-loading .loading-line {
   opacity: 1;
   animation: load 1.15s cubic-bezier(0.3, 0.65, 0.45, 1) infinite;
 }

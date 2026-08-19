@@ -23,6 +23,7 @@
     "test:smoke": "bun run build && playwright test tests/smoke.spec.ts --workers=1"
   },
   "dependencies": {
+    "@lucide/vue": "1.31.0",
     "valibot": "1.4.2",
     "vue": "3.5.41",
     "write-file-atomic": "8.0.0"

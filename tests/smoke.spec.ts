@@ -65,6 +65,17 @@ test.describe('Genshin Chrome smoke tests', () => {
       .toBe(true)
   }
 
+  function displayedAddress() {
+    return shell.getByRole('button', { name: /^编辑网页地址/ })
+  }
+
+  async function editAddress() {
+    await displayedAddress().click()
+    const input = shell.getByLabel('网页地址')
+    await expect(input).toBeVisible()
+    return input
+  }
+
   test.beforeAll(async () => {
     replacementServer = await startServer((request, response) => {
       if (request.url === '/rewritten') {
@@ -176,11 +187,50 @@ test.describe('Genshin Chrome smoke tests', () => {
     await expect(shell.getByRole('button', { name: '前进' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '刷新' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '打开配置' })).toBeVisible()
-    await expect(shell.getByLabel('网页地址')).toBeVisible()
     await expect(shell.getByRole('button', { name: '打开调试' })).toBeVisible()
-    await expect(shell.locator('button')).toHaveCount(5)
+    await expect(displayedAddress()).toBeVisible()
+    await expect(displayedAddress()).toHaveText(`${sourceServer.url}/slow-start`)
+    await expect(displayedAddress()).toHaveAttribute(
+      'aria-label',
+      `编辑网页地址，当前地址：${sourceServer.url}/slow-start`,
+    )
+    await expect(shell.locator('button')).toHaveCount(6)
     await expect(shell.locator('textarea, [role=switch], aside')).toHaveCount(0)
-    await expect(shell.getByLabel('网页地址')).toHaveValue(`${sourceServer.url}/slow-start`)
+
+    const address = await editAddress()
+    await expect(address).toHaveValue(`${sourceServer.url}/slow-start`)
+    await address.press('Escape')
+    await expect(displayedAddress()).toBeFocused()
+
+    await app.evaluate(({ webContents }, targetUrl) => {
+      const target = webContents.getAllWebContents().find((contents) => contents.getURL() === targetUrl)
+      target?.focus()
+      target?.sendInputEvent({
+        type: 'keyDown',
+        keyCode: 'L',
+        modifiers: [process.platform === 'darwin' ? 'meta' : 'control'],
+      })
+    }, `${sourceServer.url}/slow-start`)
+    const shortcutAddress = shell.getByLabel('网页地址')
+    await expect(shortcutAddress).toBeFocused()
+    await shortcutAddress.fill('shortcut draft')
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.sendInputEvent({
+        type: 'keyDown',
+        keyCode: 'L',
+        modifiers: [process.platform === 'darwin' ? 'meta' : 'control'],
+      })
+    })
+    await expect(shortcutAddress).toHaveValue('shortcut draft')
+    await expect
+      .poll(() =>
+        shortcutAddress.evaluate((element) => {
+          const input = element as HTMLInputElement
+          return [input.selectionStart, input.selectionEnd]
+        }),
+      )
+      .toEqual([0, 'shortcut draft'.length])
+    await shortcutAddress.press('Escape')
   })
 
   test('restores the existing window when the Dock activates the app', async () => {
@@ -235,7 +285,7 @@ test.describe('Genshin Chrome smoke tests', () => {
   })
 
   test('navigates, rewrites requests, and opens DevTools', async () => {
-    const address = shell.getByLabel('网页地址')
+    let address = await editAddress()
 
     await address.fill(`${sourceServer.url}/rewrite-page`)
     await address.press('Enter')
@@ -243,12 +293,14 @@ test.describe('Genshin Chrome smoke tests', () => {
     await expect.poll(() => replacementHits).toBe(1)
 
     const pageAHitsBeforeNavigation = pageAHits
+    address = await editAddress()
     await address.fill(`${sourceServer.url}/page-a`)
     await address.press('Enter')
     await expect.poll(() => pageAHits).toBeGreaterThan(pageAHitsBeforeNavigation)
     await waitForTarget(`${sourceServer.url}/page-a`)
 
     const pageBHitsBeforeNavigation = pageBHits
+    address = await editAddress()
     await address.fill(`${sourceServer.url}/page-b`)
     await address.press('Enter')
     await expect.poll(() => pageBHits).toBeGreaterThan(pageBHitsBeforeNavigation)
@@ -259,12 +311,13 @@ test.describe('Genshin Chrome smoke tests', () => {
     await waitForTarget(`${sourceServer.url}/page-b`)
     await expect(shell.getByRole('button', { name: '后退' })).toBeEnabled()
     await shell.getByRole('button', { name: '后退' }).click()
-    await expect(address).toHaveValue(`${sourceServer.url}/page-a`)
+    await expect(displayedAddress()).toHaveText(`${sourceServer.url}/page-a`)
     await expect(shell.getByRole('button', { name: '前进' })).toBeEnabled()
     await shell.getByRole('button', { name: '前进' }).click()
-    await expect(address).toHaveValue(`${sourceServer.url}/page-b`)
+    await expect(displayedAddress()).toHaveText(`${sourceServer.url}/page-b`)
     expect(pageBHits).toBeGreaterThan(0)
 
+    address = await editAddress()
     await address.fill('user draft')
     await app.evaluate(async ({ webContents }, url) => {
       const target = webContents.getAllWebContents().find((contents) => contents.getURL().endsWith('/page-b'))
@@ -273,21 +326,20 @@ test.describe('Genshin Chrome smoke tests', () => {
     await waitForTarget(`${sourceServer.url}/page-a`)
     await expect(address).toHaveValue('user draft')
     await address.blur()
-    await expect(address).toHaveValue(`${sourceServer.url}/page-a`)
+    await expect(displayedAddress()).toHaveText(`${sourceServer.url}/page-a`)
 
     await app.evaluate(async ({ webContents }, url) => {
       const target = webContents.getAllWebContents().find((contents) => contents.getURL().endsWith('/page-a'))
       await target?.executeJavaScript(`window.open(${JSON.stringify(url)}); true`)
     }, `${sourceServer.url}/page-b`)
     await waitForTarget(`${sourceServer.url}/page-b`)
-    await expect(address).toHaveValue(`${sourceServer.url}/page-b`)
+    await expect(displayedAddress()).toHaveText(`${sourceServer.url}/page-b`)
 
     await app.evaluate(async ({ webContents }) => {
       const target = webContents.getAllWebContents().find((contents) => contents.getURL().endsWith('/page-b'))
       await target?.executeJavaScript("window.open('mailto:test@example.com'); true")
     })
-    await expect(address).toHaveValue(`${sourceServer.url}/page-b`)
-    await expect(shell.getByLabel('网页地址')).toBeVisible()
+    await expect(displayedAddress()).toHaveText(`${sourceServer.url}/page-b`)
 
     await shell.getByRole('button', { name: '打开调试' }).click()
     await expect

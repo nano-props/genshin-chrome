@@ -150,6 +150,26 @@ function sendNavigationState(
   targetWindow.webContents.send(browserChannels.state, state)
 }
 
+function installAddressShortcut(contents: Electron.WebContents, targetWindow: InstanceType<typeof BrowserWindow>) {
+  contents.on('before-input-event', (event, input) => {
+    const commandKey = process.platform === 'darwin' ? input.meta : input.control
+    if (
+      input.type !== 'keyDown' ||
+      input.isAutoRepeat ||
+      input.isComposing ||
+      input.shift ||
+      input.alt ||
+      !commandKey ||
+      input.key.toLowerCase() !== 'l'
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    targetWindow.webContents.send(browserChannels.editAddress)
+  })
+}
+
 async function createWindow() {
   const initialOptions = initialWindowOptions()
   const window = new BrowserWindow({
@@ -184,6 +204,8 @@ async function createWindow() {
     },
   })
   pageView = targetView
+  installAddressShortcut(window.webContents, window)
+  installAddressShortcut(targetView.webContents, window)
 
   window.contentView.addChildView(targetView)
   targetView.setBackgroundColor(config.window.backgroundColor)
