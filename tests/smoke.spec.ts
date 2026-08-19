@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { ensureLocalConfig, resolveAppConfig, resolveLocalConfigPaths } from '#/local-config.ts'
-import { defaultWindowSize, readWindowSize, writeWindowSize } from '#/window-state.ts'
+import { defaultWindowSize, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -140,7 +140,7 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     userDataDirectory = path.join(temporaryDirectory, 'user-data')
     windowStateFile = path.join(userDataDirectory, 'state', 'window.json')
-    writeWindowSize(windowStateFile, { width: 900, height: 640 })
+    writeWindowBounds(windowStateFile, { x: 100, y: 100, width: 900, height: 640 })
 
     app = await electron.launch({
       args: [projectRoot],
@@ -223,13 +223,15 @@ test.describe('Genshin Chrome smoke tests', () => {
       .toBe(true)
   })
 
-  test('restores and remembers the window size outside config.js', async () => {
+  test('restores and remembers the window bounds outside config.js', async () => {
     await expect
-      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getSize()))
-      .toEqual([900, 640])
+      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getBounds()))
+      .toEqual({ x: 100, y: 100, width: 900, height: 640 })
 
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(960, 700))
-    await expect.poll(() => readWindowSize(windowStateFile)).toEqual({ width: 960, height: 700 })
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]?.setBounds({ x: 120, y: 140, width: 960, height: 700 }),
+    )
+    await expect.poll(() => readWindowBounds(windowStateFile)).toEqual({ x: 120, y: 140, width: 960, height: 700 })
   })
 
   test('navigates, rewrites requests, and opens DevTools', async () => {
@@ -381,21 +383,27 @@ test('requires a non-empty startUrl', () => {
   expect(() => resolveAppConfig({ startUrl: '   ' })).toThrow('config.js 的 startUrl 必须是非空字符串')
 })
 
-test('validates and atomically stores remembered window sizes', () => {
+test('validates and atomically stores remembered window bounds', () => {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'genshin-chrome-window-state-'))
   const statePath = path.join(temporaryDirectory, 'state', 'window.json')
 
   try {
-    expect(readWindowSize(statePath)).toBeNull()
+    expect(readWindowBounds(statePath)).toBeNull()
     fs.mkdirSync(path.dirname(statePath), { recursive: true })
     fs.writeFileSync(statePath, '{ invalid json')
-    expect(() => readWindowSize(statePath)).toThrow()
+    expect(() => readWindowBounds(statePath)).toThrow('Invalid window state')
 
-    fs.writeFileSync(statePath, JSON.stringify({ width: 0, height: 640 }))
-    expect(() => readWindowSize(statePath)).toThrow('Invalid window state')
+    fs.writeFileSync(statePath, 'null')
+    expect(() => readWindowBounds(statePath)).toThrow('Invalid window state')
 
-    writeWindowSize(statePath, { width: 1440, height: 900 })
-    expect(readWindowSize(statePath)).toEqual({ width: 1440, height: 900 })
+    fs.writeFileSync(statePath, JSON.stringify({ x: 0.5, y: 0, width: 960, height: 640 }))
+    expect(() => readWindowBounds(statePath)).toThrow('Invalid window state')
+
+    fs.writeFileSync(statePath, JSON.stringify({ x: 0, y: 0, width: 0, height: 640 }))
+    expect(() => readWindowBounds(statePath)).toThrow('Invalid window state')
+
+    writeWindowBounds(statePath, { x: -1440, y: 0, width: 1440, height: 900 })
+    expect(readWindowBounds(statePath)).toEqual({ x: -1440, y: 0, width: 1440, height: 900 })
     expect(defaultWindowSize).toEqual({ width: 960, height: 640 })
     expect(fs.readdirSync(path.dirname(statePath))).toEqual(['window.json'])
   } finally {

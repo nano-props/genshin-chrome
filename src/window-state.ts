@@ -1,22 +1,25 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import * as v from 'valibot'
 import writeFileAtomic from 'write-file-atomic'
 
-export type WindowSize = {
-  width: number
-  height: number
-}
+const coordinateSchema = v.pipe(v.number(), v.safeInteger())
+const dimensionSchema = v.pipe(v.number(), v.safeInteger(), v.minValue(1))
+const windowBoundsSchema = v.object({
+  x: coordinateSchema,
+  y: coordinateSchema,
+  width: dimensionSchema,
+  height: dimensionSchema,
+})
 
-export const defaultWindowSize: WindowSize = {
+export type WindowBounds = v.InferOutput<typeof windowBoundsSchema>
+
+export const defaultWindowSize = {
   width: 960,
   height: 640,
 }
 
-function isValidDimension(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value > 0
-}
-
-export function readWindowSize(statePath: string): WindowSize | null {
+export function readWindowBounds(statePath: string): WindowBounds | null {
   let source: string
   try {
     source = fs.readFileSync(statePath, 'utf8')
@@ -25,14 +28,14 @@ export function readWindowSize(statePath: string): WindowSize | null {
     throw error
   }
 
-  const value = JSON.parse(source) as Partial<WindowSize>
-  if (!isValidDimension(value.width) || !isValidDimension(value.height)) {
-    throw new Error(`Invalid window state: ${statePath}`)
+  try {
+    return v.parse(windowBoundsSchema, JSON.parse(source))
+  } catch (error) {
+    throw new Error(`Invalid window state: ${statePath}`, { cause: error })
   }
-  return { width: value.width, height: value.height }
 }
 
-export function writeWindowSize(statePath: string, size: WindowSize) {
+export function writeWindowBounds(statePath: string, bounds: WindowBounds) {
   fs.mkdirSync(path.dirname(statePath), { recursive: true })
-  writeFileAtomic.sync(statePath, `${JSON.stringify(size, null, 2)}\n`)
+  writeFileAtomic.sync(statePath, `${JSON.stringify(bounds, null, 2)}\n`)
 }

@@ -4,7 +4,7 @@ import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'el
 import { browserChannels } from '#/browser-types.ts'
 import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts'
 import { ensureLocalConfig, resolveAppConfig } from '#/local-config.ts'
-import { defaultWindowSize, readWindowSize, writeWindowSize } from '#/window-state.ts'
+import { defaultWindowSize, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
@@ -39,8 +39,8 @@ function windowStatePath() {
   return path.join(app.getPath('userData'), 'state', 'window.json')
 }
 
-function initialWindowSize() {
-  return readWindowSize(windowStatePath()) ?? defaultWindowSize
+function initialWindowOptions() {
+  return readWindowBounds(windowStatePath()) ?? defaultWindowSize
 }
 
 function normalizeAddress(value: string) {
@@ -151,10 +151,10 @@ function sendNavigationState(
 }
 
 async function createWindow() {
-  const rememberedSize = initialWindowSize()
+  const initialOptions = initialWindowOptions()
   const window = new BrowserWindow({
     backgroundColor: config.window.backgroundColor,
-    ...rememberedSize,
+    ...initialOptions,
     show: true,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
@@ -210,27 +210,28 @@ async function createWindow() {
   targetView.webContents.on('did-navigate', reportNavigationState)
   targetView.webContents.on('did-navigate-in-page', reportNavigationState)
 
-  let saveWindowSizeTimer: ReturnType<typeof setTimeout> | undefined
-  const saveWindowSize = () => {
-    const { width, height } = window.getNormalBounds()
+  let saveWindowBoundsTimer: ReturnType<typeof setTimeout> | undefined
+  const saveWindowBounds = () => {
+    const bounds = window.getNormalBounds()
     try {
-      writeWindowSize(windowStatePath(), { width, height })
+      writeWindowBounds(windowStatePath(), bounds)
     } catch (error) {
       reportError(error)
     }
   }
-  const scheduleWindowSizeSave = () => {
-    if (saveWindowSizeTimer) clearTimeout(saveWindowSizeTimer)
-    saveWindowSizeTimer = setTimeout(saveWindowSize, 250)
+  const scheduleWindowBoundsSave = () => {
+    if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
+    saveWindowBoundsTimer = setTimeout(saveWindowBounds, 250)
   }
-  window.on('resize', scheduleWindowSizeSave)
+  window.on('move', scheduleWindowBoundsSave)
+  window.on('resize', scheduleWindowBoundsSave)
   window.on('close', () => {
-    if (saveWindowSizeTimer) clearTimeout(saveWindowSizeTimer)
-    saveWindowSize()
+    if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
+    saveWindowBounds()
   })
 
   window.on('closed', () => {
-    if (saveWindowSizeTimer) clearTimeout(saveWindowSizeTimer)
+    if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
     if (!targetView.webContents.isDestroyed()) targetView.webContents.close()
     if (mainWindow === window) {
       mainWindow = null
@@ -250,7 +251,6 @@ function revealMainWindow() {
   if (process.platform === 'darwin' && app.isHidden()) app.show()
   if (mainWindow.isMinimized()) mainWindow.restore()
   if (!mainWindow.isVisible()) mainWindow.show()
-  mainWindow.focus()
   return true
 }
 
