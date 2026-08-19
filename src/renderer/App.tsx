@@ -136,9 +136,6 @@ export default defineComponent({
             <IconButton label="刷新" onPress={() => window.workbench.browserAction('reload')}>
               <Reload />
             </IconButton>
-            <IconButton label="打开配置" onPress={() => window.workbench.browserAction('open-config')}>
-              <Sliders />
-            </IconButton>
           </nav>
 
           <form class={['address-field no-drag', loading.value && 'is-loading']} onSubmit={navigate}>
@@ -162,9 +159,12 @@ export default defineComponent({
             <span class="loading-line" aria-hidden="true" />
           </form>
 
-          <div class="debug-control no-drag">
+          <div class="toolbar-actions no-drag">
             <IconButton label="打开调试" onPress={() => window.workbench.browserAction('devtools')}>
               <Wrench />
+            </IconButton>
+            <IconButton label="打开配置" onPress={() => window.workbench.browserAction('open-config')}>
+              <Sliders />
             </IconButton>
           </div>
         </header>

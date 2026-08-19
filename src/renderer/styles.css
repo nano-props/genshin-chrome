@@ -39,9 +39,8 @@ button {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 134px minmax(220px, 720px) 34px;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: center;
-  justify-content: center;
   gap: 10px;
   padding: 0 12px 0 78px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
@@ -58,12 +57,13 @@ button {
 
 .navigation-controls {
   display: flex;
-  justify-content: flex-end;
   gap: 2px;
 }
 
-.debug-control {
-  justify-self: start;
+.toolbar-actions {
+  display: flex;
+  justify-self: end;
+  gap: 2px;
 }
 
 .toolbar-button {
@@ -189,7 +189,7 @@ button {
 
 @media (max-width: 760px) {
   .toolbar {
-    grid-template-columns: 130px minmax(160px, 1fr) 32px;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
     gap: 6px;
     padding-right: 8px;
     padding-left: 72px;
