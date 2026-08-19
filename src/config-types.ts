@@ -13,10 +13,6 @@ export type AppConfig = {
   startUrl: string
   session: { partition: string; cache: boolean }
   window: {
-    width: number
-    height: number
-    minWidth: number
-    minHeight: number
     backgroundColor: string
   }
   browser: {

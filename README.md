@@ -23,6 +23,8 @@ Edit the generated object directly. Its synchronous `rewrite` hook may return `n
 
 Only `startUrl` is required. The `session`, `window`, `browser`, and `requests` groups—and every field inside them—are optional and merge with the generated defaults.
 
+Window width and height are remembered automatically in the app's user-data directory and aren't part of `config.js`. The only window option is `window.backgroundColor`.
+
 ## Install
 
 Build and install `Genshin Chrome.app` into `~/Applications`:

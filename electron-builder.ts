@@ -15,6 +15,7 @@ const config: Configuration = {
     'src/local-config.ts',
     'src/main.ts',
     'src/preload.ts',
+    'src/window-state.ts',
     'package.json',
   ],
   mac: {

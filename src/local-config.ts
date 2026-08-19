@@ -9,10 +9,6 @@ const defaultAppOptions = {
     cache: true,
   },
   window: {
-    width: 1280,
-    height: 820,
-    minWidth: 680,
-    minHeight: 480,
     backgroundColor: '#f5f5f7',
   },
   browser: {
@@ -30,30 +26,7 @@ const defaultAppOptions = {
 } satisfies Omit<AppConfig, 'startUrl'>
 
 const defaultConfigSource = `export default {
-  startUrl: 'https://example.com',
-  session: {
-    partition: 'persist:genshin-chrome',
-    cache: true,
-  },
-  window: {
-    width: 1280,
-    height: 820,
-    minWidth: 680,
-    minHeight: 480,
-    backgroundColor: '#f5f5f7',
-  },
-  browser: {
-    allowedProtocols: ['http:', 'https:'],
-    allowRunningInsecureContent: false,
-    devToolsMode: 'detach',
-    remoteDebuggingPort: 9222,
-  },
-  requests: {
-    enabled: false,
-    rewrite() {
-      return null
-    },
-  },
+  startUrl: 'https://pai.mn/',
 }
 `
 
@@ -68,6 +41,10 @@ export type LocalConfigPaths = {
   package: string
 }
 
+function mergeOptions<T extends object>(defaults: T, overrides?: Partial<T>): T {
+  return { ...defaults, ...overrides }
+}
+
 export function resolveAppConfig(source: unknown): AppConfig {
   if (!source || typeof source !== 'object' || !('startUrl' in source)) {
     throw new Error('config.js 必须配置 startUrl')
@@ -80,10 +57,10 @@ export function resolveAppConfig(source: unknown): AppConfig {
 
   return {
     startUrl: config.startUrl,
-    session: { ...defaultAppOptions.session, ...config.session },
-    window: { ...defaultAppOptions.window, ...config.window },
-    browser: { ...defaultAppOptions.browser, ...config.browser },
-    requests: { ...defaultAppOptions.requests, ...config.requests },
+    session: mergeOptions(defaultAppOptions.session, config.session),
+    window: mergeOptions(defaultAppOptions.window, config.window),
+    browser: mergeOptions(defaultAppOptions.browser, config.browser),
+    requests: mergeOptions(defaultAppOptions.requests, config.requests),
   }
 }
 

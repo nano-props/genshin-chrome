@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { ensureLocalConfig, resolveAppConfig, resolveLocalConfigPaths } from '#/local-config.ts'
+import { defaultWindowSize, readWindowSize, writeWindowSize } from '#/window-state.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -47,6 +48,8 @@ test.describe('Genshin Chrome smoke tests', () => {
   let temporaryDirectory: string
   let configHome: string
   let configDirectory: string
+  let userDataDirectory: string
+  let windowStateFile: string
 
   async function waitForTarget(url: string) {
     await expect
@@ -115,7 +118,7 @@ test.describe('Genshin Chrome smoke tests', () => {
       export default {
         startUrl: ${JSON.stringify(`${sourceServer.url}/slow-start`)},
         session: { partition: "persist:genshin-chrome-test", cache: false },
-        window: { width: 900, height: 640, minWidth: 680, minHeight: 480, backgroundColor: "#f5f5f7" },
+        window: { backgroundColor: "#f5f5f7" },
         browser: {
           allowedProtocols: ["http:", "https:"],
           allowRunningInsecureContent: false,
@@ -135,13 +138,17 @@ test.describe('Genshin Chrome smoke tests', () => {
     `,
     )
 
+    userDataDirectory = path.join(temporaryDirectory, 'user-data')
+    windowStateFile = path.join(userDataDirectory, 'state', 'window.json')
+    writeWindowSize(windowStateFile, { width: 900, height: 640 })
+
     app = await electron.launch({
       args: [projectRoot],
       cwd: projectRoot,
       env: {
         ...process.env,
         XDG_CONFIG_HOME: configHome,
-        GENSHIN_CHROME_USER_DATA_DIR: path.join(temporaryDirectory, 'user-data'),
+        GENSHIN_CHROME_USER_DATA_DIR: userDataDirectory,
       },
     })
     await expect
@@ -214,6 +221,15 @@ test.describe('Genshin Chrome smoke tests', () => {
         app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((window) => window.isVisible())),
       )
       .toBe(true)
+  })
+
+  test('restores and remembers the window size outside config.js', async () => {
+    await expect
+      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getSize()))
+      .toEqual([900, 640])
+
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(960, 700))
+    await expect.poll(() => readWindowSize(windowStateFile)).toEqual({ width: 960, height: 700 })
   })
 
   test('navigates, rewrites requests, and opens DevTools', async () => {
@@ -305,7 +321,7 @@ test('creates the default ESM configuration once', () => {
     const paths = resolveLocalConfigPaths(temporaryDirectory)
     ensureLocalConfig(paths)
     expect(fs.readFileSync(paths.package, 'utf8')).toContain('"type": "module"')
-    expect(fs.readFileSync(paths.config, 'utf8')).toContain('export default')
+    expect(fs.readFileSync(paths.config, 'utf8')).toBe("export default {\n  startUrl: 'https://pai.mn/',\n}\n")
 
     fs.writeFileSync(paths.config, 'export default { custom: true }\n')
     ensureLocalConfig(paths)
@@ -322,10 +338,6 @@ test('fills optional config fields from defaults', () => {
     startUrl: 'https://example.com',
     session: { partition: 'persist:genshin-chrome', cache: true },
     window: {
-      width: 1280,
-      height: 820,
-      minWidth: 680,
-      minHeight: 480,
       backgroundColor: '#f5f5f7',
     },
     browser: {
@@ -351,17 +363,13 @@ test('merges partial config groups without replacing their defaults', () => {
   const rewrite = () => ({ cancel: true })
   const config = resolveAppConfig({
     startUrl: 'https://example.com',
-    window: { width: 1440 },
+    window: { backgroundColor: '#ffffff' },
     browser: { remoteDebuggingPort: null },
     requests: { enabled: true, rewrite },
   })
 
   expect(config.window).toEqual({
-    width: 1440,
-    height: 820,
-    minWidth: 680,
-    minHeight: 480,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: '#ffffff',
   })
   expect(config.browser.remoteDebuggingPort).toBeNull()
   expect(config.browser.allowedProtocols).toEqual(['http:', 'https:'])
@@ -371,4 +379,26 @@ test('merges partial config groups without replacing their defaults', () => {
 test('requires a non-empty startUrl', () => {
   expect(() => resolveAppConfig({})).toThrow('config.js 必须配置 startUrl')
   expect(() => resolveAppConfig({ startUrl: '   ' })).toThrow('config.js 的 startUrl 必须是非空字符串')
+})
+
+test('validates and atomically stores remembered window sizes', () => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'genshin-chrome-window-state-'))
+  const statePath = path.join(temporaryDirectory, 'state', 'window.json')
+
+  try {
+    expect(readWindowSize(statePath)).toBeNull()
+    fs.mkdirSync(path.dirname(statePath), { recursive: true })
+    fs.writeFileSync(statePath, '{ invalid json')
+    expect(() => readWindowSize(statePath)).toThrow()
+
+    fs.writeFileSync(statePath, JSON.stringify({ width: 0, height: 640 }))
+    expect(() => readWindowSize(statePath)).toThrow('Invalid window state')
+
+    writeWindowSize(statePath, { width: 1440, height: 900 })
+    expect(readWindowSize(statePath)).toEqual({ width: 1440, height: 900 })
+    expect(defaultWindowSize).toEqual({ width: 960, height: 640 })
+    expect(fs.readdirSync(path.dirname(statePath))).toEqual(['window.json'])
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true })
+  }
 })

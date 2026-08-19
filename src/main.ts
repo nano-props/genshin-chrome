@@ -4,6 +4,7 @@ import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'el
 import { browserChannels } from '#/browser-types.ts'
 import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts'
 import { ensureLocalConfig, resolveAppConfig } from '#/local-config.ts'
+import { defaultWindowSize, readWindowSize, writeWindowSize } from '#/window-state.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
@@ -33,6 +34,14 @@ if (process.env.GENSHIN_CHROME_USER_DATA_DIR) {
 let mainWindow: InstanceType<typeof BrowserWindow> | null = null
 let pageView: InstanceType<typeof WebContentsView> | null = null
 const interceptedSessions = new WeakSet<Electron.Session>()
+
+function windowStatePath() {
+  return path.join(app.getPath('userData'), 'state', 'window.json')
+}
+
+function initialWindowSize() {
+  return readWindowSize(windowStatePath()) ?? defaultWindowSize
+}
 
 function normalizeAddress(value: string) {
   const trimmed = value.trim()
@@ -142,8 +151,10 @@ function sendNavigationState(
 }
 
 async function createWindow() {
+  const rememberedSize = initialWindowSize()
   const window = new BrowserWindow({
-    ...config.window,
+    backgroundColor: config.window.backgroundColor,
+    ...rememberedSize,
     show: true,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
@@ -199,7 +210,27 @@ async function createWindow() {
   targetView.webContents.on('did-navigate', reportNavigationState)
   targetView.webContents.on('did-navigate-in-page', reportNavigationState)
 
+  let saveWindowSizeTimer: ReturnType<typeof setTimeout> | undefined
+  const saveWindowSize = () => {
+    const { width, height } = window.getNormalBounds()
+    try {
+      writeWindowSize(windowStatePath(), { width, height })
+    } catch (error) {
+      reportError(error)
+    }
+  }
+  const scheduleWindowSizeSave = () => {
+    if (saveWindowSizeTimer) clearTimeout(saveWindowSizeTimer)
+    saveWindowSizeTimer = setTimeout(saveWindowSize, 250)
+  }
+  window.on('resize', scheduleWindowSizeSave)
+  window.on('close', () => {
+    if (saveWindowSizeTimer) clearTimeout(saveWindowSizeTimer)
+    saveWindowSize()
+  })
+
   window.on('closed', () => {
+    if (saveWindowSizeTimer) clearTimeout(saveWindowSizeTimer)
     if (!targetView.webContents.isDestroyed()) targetView.webContents.close()
     if (mainWindow === window) {
       mainWindow = null
