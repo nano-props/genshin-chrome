@@ -1,17 +1,8 @@
-@import "tailwindcss";
-
-@theme {
-  --color-ink: #171914;
-  --color-muted: #74786d;
-  --color-paper: #e8e5da;
-  --color-panel: #20231e;
-  --color-panel-line: #3b3f36;
-  --color-acid: #d8ff3e;
-  --color-orange: #ff6b35;
-  --color-cyan: #62d9d0;
-  --color-danger: #ff5c57;
-  --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
-  --font-display: "Avenir Next Condensed", "DIN Condensed", sans-serif;
+:root {
+  color: #1d1d1f;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  font-synthesis: none;
+  background: #f5f5f7;
 }
 
 * {
@@ -20,30 +11,44 @@
 
 html,
 body,
-#app {
+#app,
+.browser-shell {
   width: 100%;
   height: 100%;
   margin: 0;
   overflow: hidden;
 }
 
-body {
-  background:
-    linear-gradient(rgba(23, 25, 20, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 25, 20, 0.035) 1px, transparent 1px),
-    #e8e5da;
-  background-size: 24px 24px;
-  font-family: var(--font-mono);
-}
-
 button,
-input,
-textarea {
+input {
   font: inherit;
 }
 
-.drag-region {
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.browser-shell {
+  position: relative;
+  display: grid;
+  grid-template-rows: 68px minmax(0, 1fr);
+  background: #f5f5f7;
+}
+
+.toolbar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 76px minmax(220px, 720px) 76px;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 18px 0 86px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(246, 246, 248, 0.78);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.62) inset;
   -webkit-app-region: drag;
+  backdrop-filter: saturate(180%) blur(28px);
 }
 
 .no-drag,
@@ -51,24 +56,151 @@ textarea {
   -webkit-app-region: no-drag;
 }
 
-@keyframes reveal {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+.navigation-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
-@keyframes log-in {
-  from { opacity: 0; transform: translateX(-5px); }
+.debug-control {
+  justify-self: start;
 }
 
-::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+.toolbar-button {
+  display: grid;
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #3a3a3c;
+  background: transparent;
+  cursor: default;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform 80ms ease;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #4b5045;
+.toolbar-button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-::-webkit-scrollbar-track {
-  background: #181a16;
+.toolbar-button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.065);
+}
+.toolbar-button:active:not(:disabled) {
+  background: rgba(0, 0, 0, 0.105);
+  transform: scale(0.94);
+}
+.toolbar-button:disabled {
+  color: rgba(60, 60, 67, 0.24);
+}
+.toolbar-button:focus-visible {
+  outline: 3px solid rgba(0, 122, 255, 0.32);
+  outline-offset: 1px;
+}
+
+.address-field {
+  position: relative;
+  display: flex;
+  height: 34px;
+  min-width: 0;
+  align-items: center;
+  padding: 0 13px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.055);
+  box-shadow:
+    0 1px 1px rgba(255, 255, 255, 0.68),
+    0 1px 2px rgba(0, 0, 0, 0.03) inset;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.address-field:focus-within {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 0 0 3px rgba(0, 122, 255, 0.22),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.address-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #1d1d1f;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.address-field input::selection {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+.loading-line {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  opacity: 0;
+  background: #007aff;
+  transform: translateX(-100%);
+}
+
+.address-field.is-loading .loading-line {
+  opacity: 1;
+  animation: load 1.15s cubic-bezier(0.3, 0.65, 0.45, 1) infinite;
+}
+
+.viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background: #fff;
+}
+
+@keyframes load {
+  0% {
+    transform: translateX(-100%) scaleX(0.25);
+  }
+  55% {
+    transform: translateX(-10%) scaleX(0.62);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.25);
+  }
+}
+
+@media (max-width: 760px) {
+  .toolbar {
+    grid-template-columns: 74px minmax(160px, 1fr) 38px;
+    gap: 8px;
+    padding-right: 10px;
+    padding-left: 76px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,45 +1,69 @@
-# 原铬（Genshin Chrome）
+# Genshin Chrome
 
-一个可编程的 Electron 网站调试壳。输入 URL 后，可以浏览目标页面，并通过 JavaScript 规则改写或阻止页面发出的 HTTP 请求。
+A minimal Electron browser shell driven by a local TypeScript configuration. The interface only contains Back, Forward, the address bar, and a button that opens the target page's DevTools.
 
-## 启动
+## Setup
 
 ```bash
 bun install
+mkdir -p config
+cp config.example.ts config/config.ts
 bun run dev
 ```
 
-界面使用 Vue 3 + JSX、Reka UI 和 Tailwind CSS v4 构建，不使用 Vue SFC。
+The local `config/` directory is ignored by Git. Edit `config/config.ts` to configure the start URL, window dimensions, isolated session, allowed protocols, request rewriting, DevTools mode, and remote debugging port. Set `browser.remoteDebuggingPort` to `null` to disable remote debugging.
 
-生产构建：
+To load configuration from a different local directory, set `GENSHIN_CHROME_CONFIG_DIR` to a directory that contains a `config.ts` entry file.
+
+The interface uses Vue 3 with TSX. The Electron main process, preload bridge, and all source files under `src/` are TypeScript. They run using the TypeScript support provided by the Node.js version embedded in Electron.
+
+## Commands
 
 ```bash
+# Development
+bun run dev
+
+# Production build and preview
 bun run build
 bun run preview
+
+# End-to-end smoke test
+bun run test:smoke
+
+# Type-check, format-check, build, and smoke-test
+bun run check
 ```
 
-## 规则格式
+## Local configuration
 
-规则必须声明一个同步的 `rewrite(request)` 函数：
+The entry file exports a configuration object as an ES module:
 
-```js
-function rewrite(request) {
-  const url = new URL(request.url);
-
-  if (url.hostname !== "api.example.com") {
-    return null;
-  }
-
-  url.hostname = "localhost";
-  url.port = "3000";
-  url.protocol = "http:";
-
-  return { url: url.toString() };
+```ts
+type Request = {
+  url: string
+  method: string
+  resourceType: string
 }
+
+const config = {
+  startUrl: 'https://example.com',
+  // Window, session, and browser options...
+  requests: {
+    enabled: true,
+    rewrite(request: Request) {
+      if (!request.url.includes('/api/')) return null
+      return { url: request.url.replace('example.com', 'localhost:3000') }
+    },
+  },
+}
+
+export default config
 ```
 
-- 返回 `null`：放行原请求。
-- 返回 `{ url: "..." }`：将请求重定向到新 URL。
-- 返回 `{ cancel: true }`：阻止请求。
+The request hook may return:
 
-规则在隔离的 Worker 中运行，单次执行限制为 25ms。网页使用独立 Electron Session，并关闭 Node.js 集成。
+- `null` to allow the original request.
+- `{ url: "..." }` to redirect the request.
+- `{ cancel: true }` to block the request.
+
+The request hook is synchronous and the local configuration is fully trusted. There is no validation, fallback, retry, or compatibility layer. Remote pages still run without Node.js integration in a separate, sandboxed Electron session.
