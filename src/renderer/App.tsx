@@ -111,12 +111,16 @@ export default defineComponent({
             >
               <ChevronRight aria-hidden="true" />
             </IconButton>
-            <IconButton label="刷新" onPress={() => window.workbench.browserAction('reload')}>
-              <RotateCw aria-hidden="true" />
-            </IconButton>
           </nav>
 
-          <div class={['address-control no-drag', editingAddress.value && 'is-editing', loading.value && 'is-loading']}>
+          <div
+            class={[
+              'address-control no-drag',
+              currentUrl.value && 'has-inline-action',
+              editingAddress.value && 'is-editing',
+              loading.value && 'is-loading',
+            ]}
+          >
             {editingAddress.value ? (
               <form class="address-editor" onSubmit={navigate}>
                 <input
@@ -147,6 +151,13 @@ export default defineComponent({
               >
                 {currentUrl.value}
               </button>
+            )}
+            {currentUrl.value && (
+              <span class="address-inline-action">
+                <IconButton label="刷新" onPress={() => window.workbench.browserAction('reload')}>
+                  <RotateCw aria-hidden="true" />
+                </IconButton>
+              </span>
             )}
             <span class="loading-line" aria-hidden="true" />
           </div>

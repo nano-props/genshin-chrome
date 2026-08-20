@@ -188,6 +188,9 @@ test.describe('Genshin Chrome smoke tests', () => {
     await expect(shell.getByRole('button', { name: '刷新' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '打开配置' })).toBeVisible()
     await expect(shell.getByRole('button', { name: '打开调试' })).toBeVisible()
+    const inlineReload = shell.locator('.address-control').getByRole('button', { name: '刷新' })
+    await expect(inlineReload).toBeVisible()
+    await expect(shell.locator('.navigation-controls').getByRole('button', { name: '刷新' })).toHaveCount(0)
     await expect(displayedAddress()).toBeVisible()
     await expect(displayedAddress()).toHaveText(`${sourceServer.url}/slow-start`)
     await expect(displayedAddress()).toHaveAttribute(
@@ -196,6 +199,11 @@ test.describe('Genshin Chrome smoke tests', () => {
     )
     await expect(shell.locator('button')).toHaveCount(6)
     await expect(shell.locator('textarea, [role=switch], aside')).toHaveCount(0)
+
+    await inlineReload.focus()
+    await expect(inlineReload).toBeFocused()
+    await expect(inlineReload).toHaveCSS('outline-width', '2px')
+    await expect(inlineReload).toHaveCSS('outline-offset', '-2px')
 
     const address = await editAddress()
     await expect(address).toHaveValue(`${sourceServer.url}/slow-start`)
@@ -318,7 +326,7 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     try {
       const measurements = []
-      for (const width of [1_100, 900, 761, 760, 650]) measurements.push(await measureToolbar(width))
+      for (const width of [1_100, 900, 761, 760, 700, 650, 640]) measurements.push(await measureToolbar(width))
 
       for (const measurement of measurements) {
         expect(Math.abs(measurement.centerOffset)).toBeLessThanOrEqual(0.5)
@@ -328,7 +336,7 @@ test.describe('Genshin Chrome smoke tests', () => {
         expect(Math.abs(measurement.navigationOverflow)).toBeLessThanOrEqual(0.5)
       }
 
-      for (const measurement of measurements.slice(1)) {
+      for (const measurement of measurements.slice(4)) {
         const expectedGap = Math.min(40, Math.max(6, measurement.viewportWidth * 0.04))
         expect(Math.abs(measurement.leftGap - expectedGap)).toBeLessThanOrEqual(0.5)
       }
