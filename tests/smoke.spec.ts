@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import http, { type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import http, { type IncomingMessage, type ServerResponse } from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,7 +17,6 @@ import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBou
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 type TestServer = {
-  server: Server
   url: string
   close: () => Promise<void>
 }
@@ -29,7 +28,6 @@ function startServer(handler: (request: IncomingMessage, response: ServerRespons
       const address = server.address()
       if (!address || typeof address === 'string') throw new Error('Test server did not bind a TCP port')
       resolve({
-        server,
         url: `http://127.0.0.1:${address.port}`,
         close: () => new Promise<void>((done, reject) => server.close((error) => (error ? reject(error) : done()))),
       })
@@ -506,8 +504,27 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     expect(await editor.evaluate(() => 'configEditor' in window && !('workbench' in window))).toBe(true)
     await expect(editor.getByRole('heading', { name: '配置编辑器' })).toBeVisible()
-    await expect(editor.locator('.config-editor-header p')).toHaveCount(0)
+    await expect(editor.locator('.config-editor-header')).toHaveText('配置编辑器')
     await expect(editor.getByRole('toolbar', { name: '配置操作' })).toBeVisible()
+    const cancelButton = editor.getByRole('button', { name: '取消' })
+    const saveButton = editor.getByRole('button', { name: /^保存/ })
+    await cancelButton.focus()
+    await cancelButton.press('ArrowRight')
+    await expect(saveButton).toBeFocused()
+    await app.evaluate(({ BrowserWindow }) => {
+      const editorWindow = BrowserWindow.getAllWindows().find((window) => window.getTitle() === '配置编辑器')
+      if (!editorWindow) throw new Error('Config editor window was not found')
+      editorWindow.setBounds({ x: 140, y: 160, width: 640, height: 560 })
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .find((window) => window.getTitle() === '配置编辑器')
+            ?.getNormalBounds(),
+        ),
+      )
+      .toEqual({ x: 140, y: 160, width: 640, height: 560 })
     const titlePosition = await editor.evaluate(() => {
       const headerBounds = document.querySelector('.config-editor-header')?.getBoundingClientRect()
       const titleBounds = document.querySelector('.config-editor-header h1')?.getBoundingClientRect()

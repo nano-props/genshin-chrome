@@ -24,7 +24,7 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-const defaultConfigEditorSize = {
+const DEFAULT_CONFIG_EDITOR_SIZE = {
   width: 820,
   height: 640,
 }
@@ -109,7 +109,7 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
       }
 
       const windowStatePath = options.windowStatePath()
-      const initialBounds = readWindowBounds(windowStatePath) ?? defaultConfigEditorSize
+      const initialBounds = readWindowBounds(windowStatePath) ?? DEFAULT_CONFIG_EDITOR_SIZE
       const window = new BrowserWindow({
         ...initialBounds,
         minWidth: 640,
