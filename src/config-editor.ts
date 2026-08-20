@@ -10,32 +10,34 @@ type ConfigEditorControllerOptions = {
   devServerUrl?: string
 }
 
+type ConfigEditorSession = {
+  window: InstanceType<typeof BrowserWindow>
+  readyToShow: boolean
+  dirty: boolean
+  closeConfirmed: boolean
+  closePromptOpen: boolean
+}
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
 export function createConfigEditorController(options: ConfigEditorControllerOptions) {
-  let editorWindow: InstanceType<typeof BrowserWindow> | null = null
-  let editorParent: InstanceType<typeof BrowserWindow> | null = null
-  let editorDirty = false
-  let closeConfirmed = false
-  let closePromptOpen = false
+  let session: ConfigEditorSession | null = null
 
   function clearWindowState(window: InstanceType<typeof BrowserWindow>) {
-    if (editorWindow !== window) return
-    if (editorParent && !editorParent.isDestroyed()) editorParent.setEnabled(true)
-    editorWindow = null
-    editorParent = null
-    editorDirty = false
-    closeConfirmed = false
-    closePromptOpen = false
+    if (session?.window === window) session = null
+  }
+
+  function sessionForSender(sender: Electron.WebContents) {
+    if (!session || session.window.isDestroyed() || session.window.webContents !== sender) return null
+    return session
   }
 
   function windowForSender(sender: Electron.WebContents) {
-    if (!editorWindow || editorWindow.isDestroyed() || editorWindow.webContents !== sender) {
-      throw new Error('配置编辑器请求来源无效')
-    }
-    return editorWindow
+    const senderSession = sessionForSender(sender)
+    if (!senderSession) throw new Error('配置编辑器请求来源无效')
+    return senderSession.window
   }
 
   function loadEditor(window: InstanceType<typeof BrowserWindow>) {
@@ -76,29 +78,37 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
   )
 
   ipcMain.on(configEditorChannels.setDirty, (event: Electron.IpcMainEvent, dirty: unknown) => {
-    if (editorWindow?.webContents === event.sender) editorDirty = dirty === true
+    const senderSession = sessionForSender(event.sender)
+    if (senderSession) senderSession.dirty = dirty === true
   })
 
   ipcMain.on(configEditorChannels.requestClose, (event: Electron.IpcMainEvent) => {
-    if (editorWindow?.webContents === event.sender) editorWindow.close()
+    sessionForSender(event.sender)?.window.close()
   })
 
   return {
-    async open(parent: InstanceType<typeof BrowserWindow>) {
-      if (editorWindow && !editorWindow.isDestroyed()) {
-        if (editorWindow.isMinimized()) editorWindow.restore()
-        editorWindow.show()
-        editorWindow.focus()
-        return
+    async open() {
+      if (session) {
+        const existingWindow = session.window
+        if (!existingWindow.isDestroyed()) {
+          if (existingWindow.isMinimized()) existingWindow.restore()
+          if (session.readyToShow) {
+            existingWindow.show()
+            existingWindow.focus()
+          }
+          return
+        }
+        clearWindowState(existingWindow)
       }
 
       const window = new BrowserWindow({
-        parent,
         width: 820,
         height: 640,
         minWidth: 640,
         minHeight: 480,
-        minimizable: false,
+        title: '配置编辑器',
+        resizable: true,
+        minimizable: true,
         maximizable: false,
         fullscreenable: false,
         show: false,
@@ -113,22 +123,34 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
           sandbox: false,
         },
       })
-      editorWindow = window
-      editorParent = parent
-      parent.setEnabled(false)
-      editorDirty = false
-      closeConfirmed = false
-      closePromptOpen = false
+      const currentSession: ConfigEditorSession = {
+        window,
+        readyToShow: false,
+        dirty: false,
+        closeConfirmed: false,
+        closePromptOpen: false,
+      }
+      session = currentSession
       window.webContents.on('before-input-event', (event, input) => {
         if (commandShortcutKey(input) !== 'r') return
         event.preventDefault()
       })
-      window.once('ready-to-show', () => window.show())
+      window.once('ready-to-show', () => {
+        if (session !== currentSession || window.isDestroyed()) return
+        currentSession.readyToShow = true
+        window.show()
+        window.focus()
+      })
+      window.webContents.once('render-process-gone', (_event, details) => {
+        console.error(`[config-editor] Renderer process exited: ${details.reason}`)
+        if (!window.isDestroyed()) window.destroy()
+        clearWindowState(window)
+      })
       window.on('close', (event) => {
-        if (!editorDirty || closeConfirmed) return
+        if (!currentSession.dirty || currentSession.closeConfirmed) return
         event.preventDefault()
-        if (closePromptOpen) return
-        closePromptOpen = true
+        if (currentSession.closePromptOpen) return
+        currentSession.closePromptOpen = true
 
         void (async () => {
           try {
@@ -142,12 +164,12 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
               detail: '关闭窗口会丢失本次修改。',
             })
             if (response !== 1 || window.isDestroyed()) return
-            closeConfirmed = true
+            currentSession.closeConfirmed = true
             window.close()
           } catch (error) {
             console.error(error)
           } finally {
-            if (editorWindow === window) closePromptOpen = false
+            currentSession.closePromptOpen = false
           }
         })()
       })

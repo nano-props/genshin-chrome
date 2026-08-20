@@ -496,7 +496,7 @@ test.describe('Genshin Chrome smoke tests', () => {
     ).toEqual([{ label: '无最近项目', enabled: false }])
   })
 
-  test('edits and validates the XDG configuration in an app-managed dialog', async () => {
+  test('edits and validates the XDG configuration in a standalone window', async () => {
     const configPath = path.join(configDirectory, 'config.js')
     const originalSource = fs.readFileSync(configPath, 'utf8')
     expect(await shell.evaluate(() => 'configEditor' in window)).toBe(false)
@@ -518,26 +518,88 @@ test.describe('Genshin Chrome smoke tests', () => {
           const editorWindow = BrowserWindow.getAllWindows().find((window) =>
             window.webContents.getURL().includes('config-editor.html'),
           )
-          const parent = editorWindow?.getParentWindow()
           return Boolean(
             editorWindow &&
             !editorWindow.isModal() &&
-            !editorWindow.isMinimizable() &&
+            !editorWindow.getParentWindow() &&
+            editorWindow.isMinimizable() &&
             !editorWindow.isMaximizable() &&
-            !editorWindow.isFullScreenable() &&
-            parent &&
-            !parent.isEnabled(),
+            !editorWindow.isFullScreenable(),
           )
         }),
       )
       .toBe(true)
-    const editorParentId = await app.evaluate(({ BrowserWindow }) => {
-      const parent = BrowserWindow.getAllWindows()
-        .find((window) => window.webContents.getURL().includes('config-editor.html'))
-        ?.getParentWindow()
-      if (!parent) throw new Error('Config editor parent window was not found')
-      return parent.id
+    const editorWindowId = await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => candidate.getTitle() === '配置编辑器')
+      if (!window) throw new Error('Config editor window was not found')
+      const testState = globalThis as typeof globalThis & {
+        configEditorFocusCount?: number
+        originalConfigEditorFocus?: () => void
+      }
+      testState.configEditorFocusCount = 0
+      testState.originalConfigEditorFocus = window.focus.bind(window)
+      window.focus = () => {
+        testState.configEditorFocusCount = (testState.configEditorFocusCount ?? 0) + 1
+        testState.originalConfigEditorFocus?.()
+      }
+      window.hide()
+      return window.id
     })
+    try {
+      await shell.getByRole('button', { name: '打开配置' }).click()
+      await expect
+        .poll(() =>
+          app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()
+              .filter((window) => window.getTitle() === '配置编辑器')
+              .map((window) => ({
+                id: window.id,
+                visible: window.isVisible(),
+                focusCalls: (globalThis as typeof globalThis & { configEditorFocusCount?: number })
+                  .configEditorFocusCount,
+              })),
+          ),
+        )
+        .toEqual([{ id: editorWindowId, visible: true, focusCalls: 1 }])
+    } finally {
+      await app.evaluate(({ BrowserWindow }) => {
+        const testState = globalThis as typeof globalThis & {
+          configEditorFocusCount?: number
+          originalConfigEditorFocus?: () => void
+        }
+        const window = BrowserWindow.getAllWindows().find((candidate) => candidate.getTitle() === '配置编辑器')
+        if (window && testState.originalConfigEditorFocus) window.focus = testState.originalConfigEditorFocus
+        delete testState.configEditorFocusCount
+        delete testState.originalConfigEditorFocus
+      })
+    }
+
+    await app.evaluate(({ BrowserWindow }, windowId) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => window.id === windowId)
+        ?.minimize()
+    }, editorWindowId)
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ BrowserWindow }, windowId) =>
+            BrowserWindow.getAllWindows()
+              .find((window) => window.id === windowId)
+              ?.isMinimized(),
+          editorWindowId,
+        ),
+      )
+      .toBe(true)
+    await shell.getByRole('button', { name: '打开配置' }).click()
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }, windowId) => {
+          const windows = BrowserWindow.getAllWindows().filter((window) => window.getTitle() === '配置编辑器')
+          const window = windows.find((candidate) => candidate.id === windowId)
+          return { count: windows.length, minimized: window?.isMinimized(), visible: window?.isVisible() }
+        }, editorWindowId),
+      )
+      .toEqual({ count: 1, minimized: false, visible: true })
 
     const editorContent = editor.locator('.cm-content')
     await editorContent.click()
@@ -558,22 +620,38 @@ test.describe('Genshin Chrome smoke tests', () => {
     expect(fs.readFileSync(configPath, 'utf8')).toBe(originalSource)
 
     await app.evaluate(({ dialog }) => {
-      const testState = globalThis as typeof globalThis & { configDiscardPromptCount?: number }
+      const testState = globalThis as typeof globalThis & {
+        configDiscardPromptCount?: number
+        originalConfigShowMessageBox?: typeof dialog.showMessageBox
+      }
       testState.configDiscardPromptCount = 0
+      testState.originalConfigShowMessageBox = dialog.showMessageBox
       dialog.showMessageBox = (async () => {
         testState.configDiscardPromptCount = (testState.configDiscardPromptCount ?? 0) + 1
         return { response: 0, checkboxChecked: false }
       }) as typeof dialog.showMessageBox
     })
-    await editor.getByRole('button', { name: '取消' }).click()
-    await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(true)
-    await expect
-      .poll(() =>
-        app.evaluate(
-          () => (globalThis as typeof globalThis & { configDiscardPromptCount?: number }).configDiscardPromptCount,
-        ),
-      )
-      .toBe(1)
+    try {
+      await editor.getByRole('button', { name: '取消' }).click()
+      await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(true)
+      await expect
+        .poll(() =>
+          app.evaluate(
+            () => (globalThis as typeof globalThis & { configDiscardPromptCount?: number }).configDiscardPromptCount,
+          ),
+        )
+        .toBe(1)
+    } finally {
+      await app.evaluate(({ dialog }) => {
+        const testState = globalThis as typeof globalThis & {
+          configDiscardPromptCount?: number
+          originalConfigShowMessageBox?: typeof dialog.showMessageBox
+        }
+        if (testState.originalConfigShowMessageBox) dialog.showMessageBox = testState.originalConfigShowMessageBox
+        delete testState.configDiscardPromptCount
+        delete testState.originalConfigShowMessageBox
+      })
+    }
 
     const updatedSource = `export default {
   startUrl: ${JSON.stringify(`${sourceServer.url}/page-a`)},
@@ -602,17 +680,6 @@ test.describe('Genshin Chrome smoke tests', () => {
     await editor.getByRole('button', { name: /^保存/ }).click()
 
     await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(false)
-    await expect
-      .poll(() =>
-        app.evaluate(
-          ({ BrowserWindow }, parentId) =>
-            BrowserWindow.getAllWindows()
-              .find((window) => window.id === parentId)
-              ?.isEnabled(),
-          editorParentId,
-        ),
-      )
-      .toBe(true)
     expect(fs.readFileSync(configPath, 'utf8')).toBe(updatedSource)
 
     const unavailableConfigPath = `${configPath}.unavailable`
@@ -626,7 +693,7 @@ test.describe('Genshin Chrome smoke tests', () => {
         .poll(() =>
           app.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows().some(
-              (window) => window.getParentWindow() && window.webContents.getURL().includes('config-editor.html'),
+              (window) => !window.getParentWindow() && window.webContents.getURL().includes('config-editor.html'),
             ),
           ),
         )
@@ -645,32 +712,12 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     const editorHtmlPath = path.join(projectRoot, 'dist', 'config-editor.html')
     const unavailableEditorHtmlPath = `${editorHtmlPath}.unavailable`
-    await app.evaluate(({ app: electronApp }) => {
-      const state = globalThis as typeof globalThis & { configEditorCreationCount?: number }
-      state.configEditorCreationCount = 0
-      electronApp.on('browser-window-created', (_event, window) => {
-        if (window.getParentWindow()) {
-          state.configEditorCreationCount = (state.configEditorCreationCount ?? 0) + 1
-        }
-      })
-    })
     fs.renameSync(editorHtmlPath, unavailableEditorHtmlPath)
     try {
+      const failedEditorPromise = app.waitForEvent('window')
       await shell.getByRole('button', { name: '打开配置' }).click()
-      await expect
-        .poll(() =>
-          app.evaluate(
-            () => (globalThis as typeof globalThis & { configEditorCreationCount?: number }).configEditorCreationCount,
-          ),
-        )
-        .toBe(1)
-      await expect
-        .poll(() =>
-          app.evaluate(
-            ({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((window) => window.getParentWindow()).length,
-          ),
-        )
-        .toBe(0)
+      const failedEditor = await failedEditorPromise
+      await expect.poll(() => failedEditor.isClosed()).toBe(true)
     } finally {
       fs.renameSync(unavailableEditorHtmlPath, editorHtmlPath)
     }
@@ -680,20 +727,52 @@ test.describe('Genshin Chrome smoke tests', () => {
       .poll(() =>
         app.evaluate(({ BrowserWindow }) =>
           BrowserWindow.getAllWindows().some(
-            (window) => window.getParentWindow() && window.webContents.getURL().includes('config-editor.html'),
+            (window) => !window.getParentWindow() && window.webContents.getURL().includes('config-editor.html'),
           ),
         ),
       )
       .toBe(true)
+    const crashedEditorWindowId = await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => candidate.getTitle() === '配置编辑器')
+      if (!window) throw new Error('Config editor window was not found')
+      window.webContents.forcefullyCrashRenderer()
+      return window.id
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows().filter((window) => window.getTitle() === '配置编辑器').length,
+        ),
+      )
+      .toBe(0)
+    const recoveredEditorPromise = app.waitForEvent('window')
+    await shell.getByRole('button', { name: '打开配置' }).click()
+    const recoveredEditor = await recoveredEditorPromise
+    await recoveredEditor.waitForLoadState('domcontentloaded')
+    await expect(recoveredEditor.getByRole('heading', { name: '配置编辑器' })).toBeVisible()
+    await expect(recoveredEditor.locator('.cm-content')).toContainText('/page-a')
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ BrowserWindow }, previousId) =>
+            BrowserWindow.getAllWindows()
+              .filter((window) => window.getTitle() === '配置编辑器' && window.id !== previousId)
+              .map((window) => ({ visible: window.isVisible(), loading: window.webContents.isLoading() })),
+          crashedEditorWindowId,
+        ),
+      )
+      .toEqual([{ visible: true, loading: false }])
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()
-        .find((window) => window.getParentWindow())
+        .find((window) => window.getTitle() === '配置编辑器')
         ?.close()
     })
     await expect
       .poll(() =>
         app.evaluate(
-          ({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((window) => window.getParentWindow()).length,
+          ({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows().filter((window) => window.getTitle() === '配置编辑器').length,
         ),
       )
       .toBe(0)

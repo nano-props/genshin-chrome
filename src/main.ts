@@ -395,7 +395,7 @@ ipcMain.handle(browserChannels.navigate, (_event: Electron.IpcMainInvokeEvent, a
 
 ipcMain.on(browserChannels.action, (_event: Electron.IpcMainEvent, action: BrowserAction) => {
   if (action === 'open-config') {
-    if (mainWindow && !mainWindow.isDestroyed()) void configEditor.open(mainWindow).catch(reportError)
+    void configEditor.open().catch(reportError)
     return
   }
 
