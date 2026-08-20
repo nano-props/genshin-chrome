@@ -174,7 +174,7 @@ button {
   color: var(--config-color-path);
   font-family: 'SFMono-Regular', 'SF Mono', Menlo, Monaco, monospace;
   font-size: 10px;
-  line-height: 1;
+  line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;

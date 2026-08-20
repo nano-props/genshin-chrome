@@ -537,6 +537,7 @@ test.describe('Genshin Chrome smoke tests', () => {
       if (!headerBounds || !titleBounds || !editorBounds || !footerBounds || !pathBounds || !actionsBounds) {
         throw new Error('Config editor layout was not found')
       }
+      const pathStyle = getComputedStyle(document.querySelector('.config-path')!)
       return {
         headerHeight: headerBounds.height,
         distanceFromLeft: titleBounds.left - headerBounds.left,
@@ -545,6 +546,8 @@ test.describe('Genshin Chrome smoke tests', () => {
         footerPathLeftOffset: pathBounds.left - footerBounds.left,
         footerPathTopGap: pathBounds.top - editorBounds.bottom,
         pathActionsGap: actionsBounds.left - pathBounds.right,
+        pathHeight: pathBounds.height,
+        pathFontSize: Number.parseFloat(pathStyle.fontSize),
       }
     })
     expect(editorLayout.headerHeight).toBe(36)
@@ -554,6 +557,7 @@ test.describe('Genshin Chrome smoke tests', () => {
     expect(Math.abs(editorLayout.footerPathLeftOffset)).toBeLessThan(0.5)
     expect(editorLayout.footerPathTopGap).toBeGreaterThan(12)
     expect(editorLayout.pathActionsGap).toBeGreaterThan(18)
+    expect(editorLayout.pathHeight).toBeGreaterThanOrEqual(editorLayout.pathFontSize * 1.4)
     await expect(editor.locator('.cm-content')).toContainText('slow-start')
     await expect
       .poll(() =>
