@@ -10,34 +10,36 @@ const configEditor = requireWindowBridge('configEditor')
 const editorTheme = EditorView.theme({
   '&': {
     height: '100%',
-    color: '#242426',
+    color: 'var(--ui-color-text-editor)',
     backgroundColor: 'transparent',
   },
   '.cm-content': {
     padding: '16px 0 28px',
-    caretColor: '#007aff',
+    caretColor: 'var(--ui-color-focus)',
     fontFamily: "'SFMono-Regular', 'SF Mono', Menlo, Monaco, monospace",
     fontSize: '13px',
     lineHeight: '1.65',
   },
   '.cm-line': { padding: '0 18px 0 8px' },
   '.cm-gutters': {
-    color: 'rgba(60, 60, 67, 0.42)',
-    backgroundColor: 'rgba(246, 246, 248, 0.72)',
-    borderRight: '1px solid rgba(0, 0, 0, 0.055)',
+    color: 'var(--config-color-code-gutter-text)',
+    backgroundColor: 'var(--config-color-code-gutter)',
+    borderRight: '1px solid var(--config-color-code-divider)',
   },
-  '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'rgba(0, 122, 255, 0.055)' },
+  '.cm-activeLine, .cm-activeLineGutter': {
+    backgroundColor: 'var(--ui-color-focus-subtle)',
+  },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'rgba(0, 122, 255, 0.18) !important',
+    backgroundColor: 'var(--ui-color-selection) !important',
   },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { overflow: 'auto' },
   '.cm-tooltip': {
     overflow: 'hidden',
-    border: '1px solid rgba(0, 0, 0, 0.1)',
-    borderRadius: 'var(--config-radius-control)',
-    backgroundColor: 'rgba(250, 250, 252, 0.98)',
-    boxShadow: '0 12px 32px rgba(0, 0, 0, 0.14)',
+    border: '1px solid var(--ui-color-border-strong)',
+    borderRadius: 'var(--ui-radius-sm)',
+    backgroundColor: 'var(--config-color-tooltip)',
+    boxShadow: 'var(--config-shadow-tooltip)',
   },
 })
 

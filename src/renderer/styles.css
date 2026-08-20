@@ -1,8 +1,31 @@
+@import './design-tokens.css';
+
 :root {
-  color: #1d1d1f;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --browser-color-toolbar: rgba(246, 246, 248, 0.78);
+  --browser-color-toolbar-border: rgba(0, 0, 0, 0.12);
+  --browser-color-toolbar-button: #3a3a3c;
+  --browser-color-toolbar-button-disabled: rgba(60, 60, 67, 0.24);
+  --browser-color-toolbar-button-hover: rgba(0, 0, 0, 0.065);
+  --browser-color-toolbar-button-active: rgba(0, 0, 0, 0.105);
+  --browser-color-address: rgba(255, 255, 255, 0.56);
+  --browser-color-address-hover: rgba(255, 255, 255, 0.72);
+  --browser-color-address-active: rgba(255, 255, 255, 0.46);
+  --browser-color-address-focused: rgba(255, 255, 255, 0.82);
+  --browser-color-address-text: rgba(60, 60, 67, 0.72);
+  --browser-color-address-text-strong: rgba(29, 29, 31, 0.9);
+  --browser-color-address-border: rgba(0, 0, 0, 0.055);
+  --browser-color-address-border-hover: rgba(0, 0, 0, 0.075);
+  --browser-color-address-border-focused: rgba(0, 0, 0, 0.08);
+  --browser-color-focus-ring: rgba(0, 122, 255, 0.32);
+  --browser-color-address-focus-ring: rgba(0, 122, 255, 0.22);
+  --browser-shadow-highlight: 0 1px 0 rgba(255, 255, 255, 0.62) inset;
+  --browser-shadow-address: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --browser-shadow-address-focused: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --browser-radius-inline-action: 6px;
+  color: var(--ui-color-text);
+  font-family: var(--ui-font-family);
   font-synthesis: none;
-  background: #f5f5f7;
+  background: var(--ui-color-canvas);
 }
 
 * {
@@ -32,7 +55,7 @@ button {
   position: relative;
   display: grid;
   grid-template-rows: 52px minmax(0, 1fr);
-  background: #f5f5f7;
+  background: var(--ui-color-canvas);
 }
 
 .toolbar {
@@ -53,9 +76,9 @@ button {
   grid-template-columns: 1fr 1fr;
   align-items: center;
   padding: 0 var(--toolbar-edge-padding);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(246, 246, 248, 0.78);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.62) inset;
+  border-bottom: 1px solid var(--browser-color-toolbar-border);
+  background: var(--browser-color-toolbar);
+  box-shadow: var(--browser-shadow-highlight);
   -webkit-app-region: drag;
   backdrop-filter: saturate(180%) blur(28px);
 }
@@ -90,14 +113,14 @@ button {
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 7px;
-  color: #3a3a3c;
+  border-radius: var(--ui-radius-md);
+  color: var(--browser-color-toolbar-button);
   background: transparent;
   cursor: default;
   transition:
-    background-color 120ms ease,
-    color 120ms ease,
-    transform 80ms ease;
+    background-color var(--ui-motion-medium) ease,
+    color var(--ui-motion-medium) ease,
+    transform var(--ui-motion-fast) ease;
 }
 
 .toolbar-button svg {
@@ -111,17 +134,17 @@ button {
 }
 
 .toolbar-button:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.065);
+  background: var(--browser-color-toolbar-button-hover);
 }
 .toolbar-button:active:not(:disabled) {
-  background: rgba(0, 0, 0, 0.105);
+  background: var(--browser-color-toolbar-button-active);
   transform: scale(0.94);
 }
 .toolbar-button:disabled {
-  color: rgba(60, 60, 67, 0.24);
+  color: var(--browser-color-toolbar-button-disabled);
 }
 .toolbar-button:focus-visible {
-  outline: 3px solid rgba(0, 122, 255, 0.32);
+  outline: 3px solid var(--browser-color-focus-ring);
   outline-offset: 1px;
 }
 
@@ -136,35 +159,33 @@ button {
   height: 30px;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.055);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid var(--browser-color-address-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--browser-color-address);
   box-shadow: none;
   transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+    background-color var(--ui-motion-normal) ease,
+    border-color var(--ui-motion-normal) ease,
+    box-shadow var(--ui-motion-normal) ease;
 }
 
 .address-control:not(.is-editing):hover {
-  border-color: rgba(0, 0, 0, 0.075);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.62) inset,
-    0 1px 3px rgba(0, 0, 0, 0.05);
+  border-color: var(--browser-color-address-border-hover);
+  background: var(--browser-color-address-hover);
+  box-shadow: var(--browser-shadow-highlight), var(--browser-shadow-address);
 }
 
 .address-control:not(.is-editing):active {
-  background: rgba(255, 255, 255, 0.46);
+  background: var(--browser-color-address-active);
 }
 
 .address-control:has(.address-display:focus-visible),
 .address-control.is-editing {
-  border-color: rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.82);
+  border-color: var(--browser-color-address-border-focused);
+  background: var(--browser-color-address-focused);
   box-shadow:
-    0 0 0 3px rgba(0, 122, 255, 0.22),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+    0 0 0 3px var(--browser-color-address-focus-ring),
+    var(--browser-shadow-address-focused);
 }
 
 .address-display,
@@ -194,7 +215,7 @@ button {
 .address-inline-action .toolbar-button {
   width: 26px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--browser-radius-inline-action);
 }
 
 .address-inline-action .toolbar-button:focus-visible {
@@ -210,7 +231,7 @@ button {
 .address-display {
   display: block;
   overflow: hidden;
-  color: rgba(60, 60, 67, 0.72);
+  color: var(--browser-color-address-text);
   font-size: 13px;
   line-height: 28px;
   letter-spacing: -0.01em;
@@ -218,12 +239,12 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
-  transition: color 150ms ease;
+  transition: color var(--ui-motion-normal) ease;
 }
 
 .address-control:hover .address-display,
 .address-display:focus-visible {
-  color: rgba(29, 29, 31, 0.9);
+  color: var(--browser-color-address-text-strong);
 }
 
 .address-display:focus-visible {
@@ -241,7 +262,7 @@ button {
   padding: 0;
   border: 0;
   outline: 0;
-  color: #1d1d1f;
+  color: var(--ui-color-text);
   background: transparent;
   font-size: 13px;
   line-height: 1;
@@ -251,7 +272,7 @@ button {
 }
 
 .address-editor input::selection {
-  background: rgba(0, 122, 255, 0.2);
+  background: var(--ui-color-selection-strong);
 }
 
 .loading-line {
@@ -262,7 +283,7 @@ button {
   height: 2px;
   opacity: 0;
   pointer-events: none;
-  background: #007aff;
+  background: var(--ui-color-focus);
   transform: translateX(-100%);
 }
 
@@ -275,7 +296,7 @@ button {
   position: relative;
   min-width: 0;
   min-height: 0;
-  background: #fff;
+  background: var(--ui-color-surface);
 }
 
 @keyframes load {
