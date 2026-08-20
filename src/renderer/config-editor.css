@@ -1,4 +1,7 @@
 :root {
+  --config-radius-frame: 7px;
+  --config-radius-control: 5px;
+  --config-motion-fast: 80ms;
   color: #1d1d1f;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
   font-synthesis: none;
@@ -54,7 +57,7 @@ button {
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 10px;
+  border-radius: 6px;
   color: #356a9a;
   background: rgba(255, 255, 255, 0.66);
 }
@@ -90,7 +93,7 @@ button {
   border-radius: 50%;
   opacity: 0;
   background: #f59e0b;
-  transition: opacity 140ms ease;
+  transition: opacity var(--config-motion-fast) ease-out;
 }
 
 .dirty-indicator.is-visible {
@@ -112,12 +115,12 @@ button {
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.09);
-  border-radius: 12px;
+  border-radius: var(--config-radius-frame);
   background: rgba(255, 255, 255, 0.7);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset;
   transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+    border-color var(--config-motion-fast) ease-out,
+    box-shadow var(--config-motion-fast) ease-out;
 }
 
 .editor-frame:focus-within {
@@ -198,14 +201,13 @@ button {
   gap: 8px;
   padding: 0 13px;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
+  border-radius: var(--config-radius-control);
   color: #2f2f32;
   background: rgba(255, 255, 255, 0.74);
   cursor: default;
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    transform 80ms ease;
+    background-color var(--config-motion-fast) ease-out,
+    border-color var(--config-motion-fast) ease-out;
 }
 
 .editor-button:hover:not(:disabled) {
@@ -213,7 +215,7 @@ button {
 }
 
 .editor-button:active:not(:disabled) {
-  transform: scale(0.97);
+  background: rgba(0, 0, 0, 0.055);
 }
 
 .editor-button:focus-visible {
@@ -229,6 +231,10 @@ button {
 
 .editor-button.is-primary:hover:not(:disabled) {
   background: #086bc5;
+}
+
+.editor-button.is-primary:active:not(:disabled) {
+  background: #0562b7;
 }
 
 .editor-button:disabled {

@@ -16,13 +16,16 @@ function errorMessage(error: unknown) {
 
 export function createConfigEditorController(options: ConfigEditorControllerOptions) {
   let editorWindow: InstanceType<typeof BrowserWindow> | null = null
+  let editorParent: InstanceType<typeof BrowserWindow> | null = null
   let editorDirty = false
   let closeConfirmed = false
   let closePromptOpen = false
 
   function clearWindowState(window: InstanceType<typeof BrowserWindow>) {
     if (editorWindow !== window) return
+    if (editorParent && !editorParent.isDestroyed()) editorParent.setEnabled(true)
     editorWindow = null
+    editorParent = null
     editorDirty = false
     closeConfirmed = false
     closePromptOpen = false
@@ -91,11 +94,13 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
 
       const window = new BrowserWindow({
         parent,
-        modal: true,
         width: 820,
         height: 640,
         minWidth: 640,
         minHeight: 480,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
         show: false,
         backgroundColor: '#f5f5f7',
         titleBarStyle: 'hiddenInset',
@@ -109,6 +114,8 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
         },
       })
       editorWindow = window
+      editorParent = parent
+      parent.setEnabled(false)
       editorDirty = false
       closeConfirmed = false
       closePromptOpen = false

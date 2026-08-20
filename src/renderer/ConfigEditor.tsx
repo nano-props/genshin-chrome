@@ -34,7 +34,7 @@ const editorTheme = EditorView.theme({
   '.cm-tooltip': {
     overflow: 'hidden',
     border: '1px solid rgba(0, 0, 0, 0.1)',
-    borderRadius: '8px',
+    borderRadius: 'var(--config-radius-control)',
     backgroundColor: 'rgba(250, 250, 252, 0.98)',
     boxShadow: '0 12px 32px rgba(0, 0, 0, 0.14)',
   },

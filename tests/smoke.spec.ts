@@ -496,7 +496,7 @@ test.describe('Genshin Chrome smoke tests', () => {
     ).toEqual([{ label: '无最近项目', enabled: false }])
   })
 
-  test('edits and validates the XDG configuration in an app modal', async () => {
+  test('edits and validates the XDG configuration in an app-managed dialog', async () => {
     const configPath = path.join(configDirectory, 'config.js')
     const originalSource = fs.readFileSync(configPath, 'utf8')
     expect(await shell.evaluate(() => 'configEditor' in window)).toBe(false)
@@ -515,13 +515,29 @@ test.describe('Genshin Chrome smoke tests', () => {
     await expect
       .poll(() =>
         app.evaluate(({ BrowserWindow }) => {
-          const modal = BrowserWindow.getAllWindows().find((window) =>
+          const editorWindow = BrowserWindow.getAllWindows().find((window) =>
             window.webContents.getURL().includes('config-editor.html'),
           )
-          return Boolean(modal?.isModal() && modal.getParentWindow())
+          const parent = editorWindow?.getParentWindow()
+          return Boolean(
+            editorWindow &&
+            !editorWindow.isModal() &&
+            !editorWindow.isMinimizable() &&
+            !editorWindow.isMaximizable() &&
+            !editorWindow.isFullScreenable() &&
+            parent &&
+            !parent.isEnabled(),
+          )
         }),
       )
       .toBe(true)
+    const editorParentId = await app.evaluate(({ BrowserWindow }) => {
+      const parent = BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().includes('config-editor.html'))
+        ?.getParentWindow()
+      if (!parent) throw new Error('Config editor parent window was not found')
+      return parent.id
+    })
 
     const editorContent = editor.locator('.cm-content')
     await editorContent.click()
@@ -586,6 +602,17 @@ test.describe('Genshin Chrome smoke tests', () => {
     await editor.getByRole('button', { name: /^保存/ }).click()
 
     await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(false)
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ BrowserWindow }, parentId) =>
+            BrowserWindow.getAllWindows()
+              .find((window) => window.id === parentId)
+              ?.isEnabled(),
+          editorParentId,
+        ),
+      )
+      .toBe(true)
     expect(fs.readFileSync(configPath, 'utf8')).toBe(updatedSource)
 
     const unavailableConfigPath = `${configPath}.unavailable`
