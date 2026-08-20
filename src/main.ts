@@ -16,6 +16,7 @@ const configPaths = ensureLocalConfig()
 const configPath = configPaths.config
 const configUrl = pathToFileURL(configPath).href
 const configEditor = createConfigEditorController({
+  configPaths,
   preloadPath: path.join(currentDirectory, 'config-editor-preload.ts'),
   rendererDirectory: path.join(projectRoot, 'dist'),
   devServerUrl: process.env.VITE_DEV_SERVER_URL,

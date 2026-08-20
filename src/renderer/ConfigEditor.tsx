@@ -51,6 +51,7 @@ export default defineComponent({
     const saving = ref(false)
     const dirty = ref(false)
     const error = ref('')
+    const configPath = ref('')
     let editor: EditorView | undefined
     let savedSource = ''
 
@@ -100,7 +101,10 @@ export default defineComponent({
     onMounted(async () => {
       window.addEventListener('keydown', handleShortcut)
       try {
-        const source = await configEditor.read()
+        const result = await configEditor.read()
+        configPath.value = result.path
+        if (!result.ok) throw new Error(result.error)
+        const source = result.source
         savedSource = source
         if (!editorHost.value) return
         editor = new EditorView({
@@ -136,10 +140,17 @@ export default defineComponent({
       <div class="config-editor-shell">
         <header class="config-editor-header">
           <h1>配置编辑器</h1>
-          <span
-            class={['dirty-indicator', dirty.value && 'is-visible']}
-            aria-label={dirty.value ? '有未保存的更改' : ''}
-          />
+          <div class="config-header-details">
+            {configPath.value && (
+              <code class="config-path" title={configPath.value}>
+                {configPath.value}
+              </code>
+            )}
+            <span
+              class={['dirty-indicator', dirty.value && 'is-visible']}
+              aria-label={dirty.value ? '有未保存的更改' : ''}
+            />
+          </div>
         </header>
 
         <main class="config-editor-main">

@@ -10,8 +10,11 @@ export type ConfigSaveResult =
   | { ok: false; error: string; reloadedSource?: undefined }
   | { ok: false; error: string; reloadedSource: string }
 
+export type ConfigEditorReadResult =
+  { ok: true; path: string; source: string } | { ok: false; path: string; error: string }
+
 export type ConfigEditorBridge = {
-  read(): Promise<string>
+  read(): Promise<ConfigEditorReadResult>
   save(source: string, expectedSource: string): Promise<ConfigSaveResult>
   setDirty(dirty: boolean): void
   requestClose(): void

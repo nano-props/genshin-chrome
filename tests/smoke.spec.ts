@@ -504,7 +504,8 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     expect(await editor.evaluate(() => 'configEditor' in window && !('workbench' in window))).toBe(true)
     await expect(editor.getByRole('heading', { name: '配置编辑器' })).toBeVisible()
-    await expect(editor.locator('.config-editor-header')).toHaveText('配置编辑器')
+    await expect(editor.locator('.config-path')).toHaveText(configPath)
+    await expect(editor.locator('.config-path')).toHaveAttribute('title', configPath)
     await expect(editor.getByRole('toolbar', { name: '配置操作' })).toBeVisible()
     const cancelButton = editor.getByRole('button', { name: '取消' })
     const saveButton = editor.getByRole('button', { name: /^保存/ })
@@ -528,14 +529,17 @@ test.describe('Genshin Chrome smoke tests', () => {
     const titlePosition = await editor.evaluate(() => {
       const headerBounds = document.querySelector('.config-editor-header')?.getBoundingClientRect()
       const titleBounds = document.querySelector('.config-editor-header h1')?.getBoundingClientRect()
-      if (!headerBounds || !titleBounds) throw new Error('Config editor title bar was not found')
+      const pathBounds = document.querySelector('.config-path')?.getBoundingClientRect()
+      if (!headerBounds || !titleBounds || !pathBounds) throw new Error('Config editor title bar was not found')
       return {
         distanceFromLeft: titleBounds.left - headerBounds.left,
         centerOffset: titleBounds.left + titleBounds.width / 2 - (headerBounds.left + headerBounds.width / 2),
+        titlePathGap: pathBounds.left - titleBounds.right,
       }
     })
     expect(titlePosition.distanceFromLeft).toBeGreaterThan(120)
     expect(Math.abs(titlePosition.centerOffset)).toBeLessThan(0.5)
+    expect(titlePosition.titlePathGap).toBeGreaterThan(16)
     await expect(editor.locator('.cm-content')).toContainText('slow-start')
     await expect
       .poll(() =>
@@ -743,6 +747,7 @@ test.describe('Genshin Chrome smoke tests', () => {
             ?.getNormalBounds(),
         ),
       ).toEqual({ x: 140, y: 160, width: 760, height: 560 })
+      await expect(failedEditor.locator('.config-path')).toHaveText(configPath)
       await expect(failedEditor.getByRole('status')).toContainText('ENOENT')
       await expect(failedEditor.getByRole('button', { name: /^保存/ })).toBeDisabled()
       await app.evaluate(({ BrowserWindow }) => {

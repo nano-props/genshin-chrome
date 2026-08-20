@@ -3,12 +3,14 @@ import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { configEditorChannels } from '#/config-editor-types.ts'
 import { commandShortcutKey } from '#/keyboard-shortcuts.ts'
 import { readLocalConfigSource, saveLocalConfigSourceIfUnchanged } from '#/local-config.ts'
+import type { LocalConfigPaths } from '#/local-config.ts'
 import { readWindowBounds, trackWindowBounds } from '#/window-state.ts'
 
 type ConfigEditorControllerOptions = {
   preloadPath: string
   rendererDirectory: string
   devServerUrl?: string
+  configPaths: LocalConfigPaths
   windowStatePath: () => string
 }
 
@@ -58,7 +60,19 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
 
   ipcMain.handle(configEditorChannels.read, (event: Electron.IpcMainInvokeEvent) => {
     windowForSender(event.sender)
-    return readLocalConfigSource()
+    try {
+      return {
+        ok: true,
+        path: options.configPaths.config,
+        source: readLocalConfigSource(options.configPaths),
+      } as const
+    } catch (error) {
+      return {
+        ok: false,
+        path: options.configPaths.config,
+        error: errorMessage(error),
+      } as const
+    }
   })
 
   ipcMain.handle(
@@ -69,7 +83,7 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
         if (typeof source !== 'string' || typeof expectedSource !== 'string') {
           throw new Error('配置编辑器保存参数无效')
         }
-        const result = saveLocalConfigSourceIfUnchanged(source, expectedSource)
+        const result = saveLocalConfigSourceIfUnchanged(source, expectedSource, options.configPaths)
         if (!result.ok) {
           return {
             ok: false,
