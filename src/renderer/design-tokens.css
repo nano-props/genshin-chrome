@@ -3,7 +3,6 @@
   --ui-color-text: #1d1d1f;
   --ui-color-text-editor: #242426;
   --ui-color-text-control: #3f3f46;
-  --ui-color-text-on-accent: #fff;
   --ui-color-text-muted: rgba(60, 60, 67, 0.56);
   --ui-color-text-placeholder: rgba(60, 60, 67, 0.48);
   --ui-color-canvas: #f5f5f7;
@@ -20,14 +19,15 @@
   --ui-color-danger-border: rgba(201, 52, 52, 0.38);
   --ui-color-warning: #f59e0b;
 
-  --brand-color-accent: #a86414;
-  --brand-color-accent-hover: #9b5e10;
-  --brand-color-accent-active: #8a500c;
+  --brand-color-accent: #d8a92f;
+  --brand-color-accent-hover: #e2b943;
+  --brand-color-accent-active: #c9911e;
+  --brand-color-on-accent: #3b2605;
   --brand-color-accent-soft: #fff8e8;
   --brand-color-accent-soft-active: #f8ebcf;
   --brand-color-accent-border: #d9c9ab;
   --brand-color-accent-border-active: #cfba92;
-  --brand-color-focus-ring: var(--brand-color-accent-hover);
+  --brand-color-focus-ring: #8a5a0a;
 
   --ui-radius-xs: 4px;
   --ui-radius-sm: 5px;
