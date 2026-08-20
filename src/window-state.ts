@@ -19,6 +19,8 @@ export const defaultWindowSize = {
   height: 640,
 }
 
+export const minimumWindowWidth = 640
+
 export function readWindowBounds(statePath: string): WindowBounds | null {
   let source: string
   try {

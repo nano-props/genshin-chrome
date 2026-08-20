@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { ensureLocalConfig, resolveAppConfig, resolveLocalConfigPaths } from '#/local-config.ts'
-import { defaultWindowSize, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
+import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -282,6 +282,70 @@ test.describe('Genshin Chrome smoke tests', () => {
       BrowserWindow.getAllWindows()[0]?.setBounds({ x: 120, y: 140, width: 960, height: 700 }),
     )
     await expect.poll(() => readWindowBounds(windowStateFile)).toEqual({ x: 120, y: 140, width: 960, height: 700 })
+  })
+
+  test('keeps the address centered while toolbar spacing contracts smoothly', async () => {
+    const originalBounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds())
+    await expect
+      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getMinimumSize()[0]))
+      .toBe(minimumWindowWidth)
+
+    async function measureToolbar(width: number) {
+      await app.evaluate(({ BrowserWindow }, targetWidth) => {
+        const window = BrowserWindow.getAllWindows()[0]!
+        window.setBounds({ ...window.getBounds(), width: targetWidth })
+      }, width)
+      await expect.poll(() => shell.evaluate(() => window.innerWidth)).toBe(width)
+
+      return shell.evaluate(() => {
+        const navigation = document.querySelector('.navigation-controls')!.getBoundingClientRect()
+        const lastNavigationButton = document
+          .querySelector('.navigation-controls .toolbar-button:last-child')!
+          .getBoundingClientRect()
+        const address = document.querySelector('.address-control')!.getBoundingClientRect()
+        const actions = document.querySelector('.toolbar-actions')!.getBoundingClientRect()
+
+        return {
+          addressWidth: address.width,
+          centerOffset: (address.left + address.right) / 2 - window.innerWidth / 2,
+          leftGap: address.left - lastNavigationButton.right,
+          navigationOverflow: lastNavigationButton.right - navigation.right,
+          rightGap: actions.left - address.right,
+          viewportWidth: window.innerWidth,
+        }
+      })
+    }
+
+    try {
+      const measurements = []
+      for (const width of [1_100, 900, 761, 760, 650]) measurements.push(await measureToolbar(width))
+
+      for (const measurement of measurements) {
+        expect(Math.abs(measurement.centerOffset)).toBeLessThanOrEqual(0.5)
+        expect(measurement.leftGap).toBeGreaterThanOrEqual(6)
+        expect(measurement.rightGap).toBeGreaterThan(measurement.leftGap)
+        expect(measurement.addressWidth).toBeLessThanOrEqual(760)
+        expect(Math.abs(measurement.navigationOverflow)).toBeLessThanOrEqual(0.5)
+      }
+
+      for (const measurement of measurements.slice(1)) {
+        const expectedGap = Math.min(40, Math.max(6, measurement.viewportWidth * 0.04))
+        expect(Math.abs(measurement.leftGap - expectedGap)).toBeLessThanOrEqual(0.5)
+      }
+
+      for (let index = 1; index < measurements.length; index += 1) {
+        expect(measurements[index]!.leftGap).toBeLessThanOrEqual(measurements[index - 1]!.leftGap)
+        expect(measurements[index]!.rightGap).toBeLessThanOrEqual(measurements[index - 1]!.rightGap)
+      }
+
+      expect(Math.abs(measurements[2]!.leftGap - measurements[3]!.leftGap)).toBeLessThan(1)
+      expect(Math.abs(measurements[2]!.rightGap - measurements[3]!.rightGap)).toBeLessThan(1)
+    } finally {
+      await app.evaluate(
+        ({ BrowserWindow }, bounds) => BrowserWindow.getAllWindows()[0]!.setBounds(bounds),
+        originalBounds,
+      )
+    }
   })
 
   test('navigates, rewrites requests, and opens DevTools', async () => {

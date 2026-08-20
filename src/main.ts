@@ -4,7 +4,7 @@ import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'el
 import { browserChannels } from '#/browser-types.ts'
 import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts'
 import { ensureLocalConfig, resolveAppConfig } from '#/local-config.ts'
-import { defaultWindowSize, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
+import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
@@ -175,6 +175,7 @@ async function createWindow() {
   const window = new BrowserWindow({
     backgroundColor: config.window.backgroundColor,
     ...initialOptions,
+    minWidth: minimumWindowWidth,
     show: true,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
