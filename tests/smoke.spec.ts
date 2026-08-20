@@ -532,13 +532,17 @@ test.describe('Genshin Chrome smoke tests', () => {
       const pathBounds = document.querySelector('.config-path')?.getBoundingClientRect()
       if (!headerBounds || !titleBounds || !pathBounds) throw new Error('Config editor title bar was not found')
       return {
+        headerHeight: headerBounds.height,
         distanceFromLeft: titleBounds.left - headerBounds.left,
         centerOffset: titleBounds.left + titleBounds.width / 2 - (headerBounds.left + headerBounds.width / 2),
+        verticalCenterOffset: titleBounds.top + titleBounds.height / 2 - (headerBounds.top + headerBounds.height / 2),
         titlePathGap: pathBounds.left - titleBounds.right,
       }
     })
+    expect(titlePosition.headerHeight).toBe(36)
     expect(titlePosition.distanceFromLeft).toBeGreaterThan(120)
     expect(Math.abs(titlePosition.centerOffset)).toBeLessThan(0.5)
+    expect(Math.abs(titlePosition.verticalCenterOffset)).toBeLessThanOrEqual(0.5)
     expect(titlePosition.titlePathGap).toBeGreaterThan(16)
     await expect(editor.locator('.cm-content')).toContainText('slow-start')
     await expect

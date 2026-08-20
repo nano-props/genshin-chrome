@@ -12,6 +12,7 @@
   --config-color-button-border: #d4d4d8;
   --config-color-button-shortcut: rgba(255, 255, 255, 0.72);
   --config-color-path: rgba(60, 60, 67, 0.72);
+  --config-titlebar-height: 36px;
   --config-shadow-editor-inset: 0 1px 0 rgba(255, 255, 255, 0.82) inset;
   --config-shadow-tooltip: 0 12px 32px rgba(0, 0, 0, 0.14);
   --config-shadow-button: 0 1px 2px rgba(24, 24, 27, 0.08);
@@ -42,7 +43,7 @@ button {
 
 .config-editor-shell {
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: var(--config-titlebar-height) minmax(0, 1fr);
   background:
     radial-gradient(circle at 75% 0%, var(--config-color-shell-highlight), transparent 36%), var(--config-color-shell);
 }
@@ -52,7 +53,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 18px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--ui-color-border);
   background: var(--config-color-header);
   -webkit-app-region: drag;
@@ -64,7 +65,7 @@ button {
   left: 50%;
   margin: 0;
   transform: translateX(-50%);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;

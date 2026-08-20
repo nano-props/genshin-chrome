@@ -136,7 +136,7 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
         show: false,
         backgroundColor: '#f5f5f7',
         titleBarStyle: 'hiddenInset',
-        trafficLightPosition: { x: 18, y: 18 },
+        trafficLightPosition: { x: 18, y: 11 },
         ...(process.platform === 'darwin' ? { vibrancy: 'under-window', visualEffectState: 'active' } : {}),
         webPreferences: {
           preload: options.preloadPath,
