@@ -1,4 +1,4 @@
-import { AlertCircle, Check } from '@lucide/vue'
+import { AlertCircle } from '@lucide/vue'
 import { basicSetup, EditorView } from 'codemirror'
 import { javascript } from '@codemirror/lang-javascript'
 import { ToolbarButton, ToolbarRoot } from 'reka-ui'
@@ -52,6 +52,7 @@ export default defineComponent({
     const dirty = ref(false)
     const error = ref('')
     const configPath = ref('')
+    const displayPath = ref('')
     let editor: EditorView | undefined
     let savedSource = ''
 
@@ -103,6 +104,7 @@ export default defineComponent({
       try {
         const result = await configEditor.read()
         configPath.value = result.path
+        displayPath.value = result.displayPath
         if (!result.ok) throw new Error(result.error)
         const source = result.source
         savedSource = source
@@ -140,17 +142,10 @@ export default defineComponent({
       <div class="config-editor-shell">
         <header class="config-editor-header">
           <h1>配置编辑器</h1>
-          <div class="config-header-details">
-            {configPath.value && (
-              <code class="config-path" title={configPath.value}>
-                {configPath.value}
-              </code>
-            )}
-            <span
-              class={['dirty-indicator', dirty.value && 'is-visible']}
-              aria-label={dirty.value ? '有未保存的更改' : ''}
-            />
-          </div>
+          <span
+            class={['dirty-indicator', dirty.value && 'is-visible']}
+            aria-label={dirty.value ? '有未保存的更改' : ''}
+          />
         </header>
 
         <main class="config-editor-main">
@@ -160,17 +155,17 @@ export default defineComponent({
           </section>
 
           <footer class="config-editor-footer">
-            <div class={['editor-status', error.value && 'is-error']} role="status" aria-live="polite">
-              {error.value ? (
-                <>
+            <div class="editor-footer-info">
+              {configPath.value && (
+                <code class="config-path" title={configPath.value}>
+                  {displayPath.value}
+                </code>
+              )}
+              {error.value && (
+                <div class="editor-status is-error" role="status" aria-live="polite">
                   <AlertCircle aria-hidden="true" />
                   <span>{error.value}</span>
-                </>
-              ) : (
-                <>
-                  <Check aria-hidden="true" />
-                  <span>保存前会静态校验语法和可确定的必填项</span>
-                </>
+                </div>
               )}
             </div>
             <ToolbarRoot class="config-editor-actions" aria-label="配置操作" loop>

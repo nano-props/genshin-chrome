@@ -70,28 +70,6 @@ button {
   white-space: nowrap;
 }
 
-.config-header-details {
-  display: flex;
-  min-width: 0;
-  max-width: calc(50% - 90px);
-  align-items: center;
-  gap: 8px;
-}
-
-.config-path {
-  min-width: 0;
-  overflow: hidden;
-  flex: 1 1 auto;
-  color: var(--config-color-path);
-  font-family: 'SFMono-Regular', 'SF Mono', Menlo, Monaco, monospace;
-  font-size: 10px;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
-  -webkit-app-region: no-drag;
-}
-
 .dirty-indicator {
   width: 7px;
   height: 7px;
@@ -163,10 +141,20 @@ button {
   gap: 18px;
 }
 
+.editor-footer-info,
 .editor-status {
   display: flex;
   min-width: 0;
   align-items: center;
+}
+
+.editor-footer-info {
+  flex: 1 1 auto;
+  gap: 12px;
+}
+
+.editor-status {
+  flex: 1 1 auto;
   gap: 7px;
   color: var(--ui-color-text-muted);
   font-size: 11px;
@@ -176,6 +164,20 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.config-path {
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  flex: 0 1 auto;
+  color: var(--config-color-path);
+  font-family: 'SFMono-Regular', 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 10px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
 }
 
 .editor-status svg {

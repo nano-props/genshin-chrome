@@ -78,6 +78,14 @@ export function resolveLocalConfigPaths(
   }
 }
 
+export function compactHomePath(filePath: string, homeDirectory = os.homedir()) {
+  const relativePath = path.relative(homeDirectory, filePath)
+  if (relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+    return filePath
+  }
+  return relativePath ? path.join('~', relativePath) : '~'
+}
+
 export function ensureLocalConfig(paths = resolveLocalConfigPaths()) {
   fs.mkdirSync(paths.directory, { recursive: true })
   if (!fs.existsSync(paths.package)) fs.writeFileSync(paths.package, esmPackageSource)

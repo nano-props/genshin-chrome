@@ -10,8 +10,10 @@ export type ConfigSaveResult =
   | { ok: false; error: string; reloadedSource?: undefined }
   | { ok: false; error: string; reloadedSource: string }
 
+type ConfigEditorPath = { path: string; displayPath: string }
+
 export type ConfigEditorReadResult =
-  { ok: true; path: string; source: string } | { ok: false; path: string; error: string }
+  (ConfigEditorPath & { ok: true; source: string }) | (ConfigEditorPath & { ok: false; error: string })
 
 export type ConfigEditorBridge = {
   read(): Promise<ConfigEditorReadResult>

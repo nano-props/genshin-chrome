@@ -2,7 +2,7 @@ import path from 'node:path'
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { configEditorChannels } from '#/config-editor-types.ts'
 import { commandShortcutKey } from '#/keyboard-shortcuts.ts'
-import { readLocalConfigSource, saveLocalConfigSourceIfUnchanged } from '#/local-config.ts'
+import { compactHomePath, readLocalConfigSource, saveLocalConfigSourceIfUnchanged } from '#/local-config.ts'
 import type { LocalConfigPaths } from '#/local-config.ts'
 import { readWindowBounds, trackWindowBounds } from '#/window-state.ts'
 
@@ -60,16 +60,20 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
 
   ipcMain.handle(configEditorChannels.read, (event: Electron.IpcMainInvokeEvent) => {
     windowForSender(event.sender)
+    const configPath = options.configPaths.config
+    const displayPath = compactHomePath(configPath)
     try {
       return {
         ok: true,
-        path: options.configPaths.config,
+        path: configPath,
+        displayPath,
         source: readLocalConfigSource(options.configPaths),
       } as const
     } catch (error) {
       return {
         ok: false,
-        path: options.configPaths.config,
+        path: configPath,
+        displayPath,
         error: errorMessage(error),
       } as const
     }

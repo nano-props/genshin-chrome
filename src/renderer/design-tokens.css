@@ -19,15 +19,15 @@
   --ui-color-danger-border: rgba(201, 52, 52, 0.38);
   --ui-color-warning: #f59e0b;
 
-  --brand-color-accent: #d8a92f;
-  --brand-color-accent-hover: #e2b943;
-  --brand-color-accent-active: #c9911e;
+  --brand-color-accent: #ffd700;
+  --brand-color-accent-hover: #ffdf33;
+  --brand-color-accent-active: #e6c200;
   --brand-color-on-accent: #3b2605;
   --brand-color-accent-soft: #fff8e8;
   --brand-color-accent-soft-active: #f8ebcf;
   --brand-color-accent-border: #d9c9ab;
   --brand-color-accent-border-active: #cfba92;
-  --brand-color-focus-ring: #8a5a0a;
+  --brand-color-focus-ring: #9a6500;
 
   --ui-radius-xs: 4px;
   --ui-radius-sm: 5px;

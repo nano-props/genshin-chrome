@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import {
+  compactHomePath,
   ensureLocalConfig,
   resolveAppConfig,
   resolveLocalConfigPaths,
@@ -526,24 +527,33 @@ test.describe('Genshin Chrome smoke tests', () => {
         ),
       )
       .toEqual({ x: 140, y: 160, width: 640, height: 560 })
-    const titlePosition = await editor.evaluate(() => {
+    const editorLayout = await editor.evaluate(() => {
       const headerBounds = document.querySelector('.config-editor-header')?.getBoundingClientRect()
       const titleBounds = document.querySelector('.config-editor-header h1')?.getBoundingClientRect()
+      const editorBounds = document.querySelector('.editor-frame')?.getBoundingClientRect()
+      const footerBounds = document.querySelector('.config-editor-footer')?.getBoundingClientRect()
       const pathBounds = document.querySelector('.config-path')?.getBoundingClientRect()
-      if (!headerBounds || !titleBounds || !pathBounds) throw new Error('Config editor title bar was not found')
+      const actionsBounds = document.querySelector('.config-editor-actions')?.getBoundingClientRect()
+      if (!headerBounds || !titleBounds || !editorBounds || !footerBounds || !pathBounds || !actionsBounds) {
+        throw new Error('Config editor layout was not found')
+      }
       return {
         headerHeight: headerBounds.height,
         distanceFromLeft: titleBounds.left - headerBounds.left,
         centerOffset: titleBounds.left + titleBounds.width / 2 - (headerBounds.left + headerBounds.width / 2),
         verticalCenterOffset: titleBounds.top + titleBounds.height / 2 - (headerBounds.top + headerBounds.height / 2),
-        titlePathGap: pathBounds.left - titleBounds.right,
+        footerPathLeftOffset: pathBounds.left - footerBounds.left,
+        footerPathTopGap: pathBounds.top - editorBounds.bottom,
+        pathActionsGap: actionsBounds.left - pathBounds.right,
       }
     })
-    expect(titlePosition.headerHeight).toBe(36)
-    expect(titlePosition.distanceFromLeft).toBeGreaterThan(120)
-    expect(Math.abs(titlePosition.centerOffset)).toBeLessThan(0.5)
-    expect(Math.abs(titlePosition.verticalCenterOffset)).toBeLessThanOrEqual(0.5)
-    expect(titlePosition.titlePathGap).toBeGreaterThan(16)
+    expect(editorLayout.headerHeight).toBe(36)
+    expect(editorLayout.distanceFromLeft).toBeGreaterThan(120)
+    expect(Math.abs(editorLayout.centerOffset)).toBeLessThan(0.5)
+    expect(Math.abs(editorLayout.verticalCenterOffset)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(editorLayout.footerPathLeftOffset)).toBeLessThan(0.5)
+    expect(editorLayout.footerPathTopGap).toBeGreaterThan(12)
+    expect(editorLayout.pathActionsGap).toBeGreaterThan(18)
     await expect(editor.locator('.cm-content')).toContainText('slow-start')
     await expect
       .poll(() =>
@@ -713,7 +723,7 @@ test.describe('Genshin Chrome smoke tests', () => {
     await editorContent.click()
     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
     await editor.keyboard.insertText(updatedSource)
-    await expect(editor.getByRole('status')).toContainText('保存前会静态校验语法和可确定的必填项')
+    await expect(editor.locator('.config-path')).toContainText(configPath)
     await editor.getByRole('button', { name: /^保存/ }).click()
     await expect(editor.getByRole('status')).toContainText('已被其他程序修改，已重新加载最新内容')
     await expect(editorContent).toContainText('/page-b')
@@ -722,7 +732,7 @@ test.describe('Genshin Chrome smoke tests', () => {
     await editorContent.click()
     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
     await editor.keyboard.insertText(updatedSource)
-    await expect(editor.getByRole('status')).toContainText('保存前会静态校验语法和可确定的必填项')
+    await expect(editor.locator('.config-path')).toContainText(configPath)
     await editor.getByRole('button', { name: /^保存/ }).click()
 
     await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(false)
@@ -848,6 +858,15 @@ test('creates the default ESM configuration once', () => {
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true })
   }
+})
+
+test('compacts only configuration paths inside the user home directory', () => {
+  const homeDirectory = path.join(path.sep, 'Users', 'example')
+  const configPath = path.join(homeDirectory, '.config', 'genshin-chrome', 'config.js')
+  const externalPath = path.join(path.sep, 'opt', 'genshin-chrome', 'config.js')
+
+  expect(compactHomePath(configPath, homeDirectory)).toBe(path.join('~', '.config', 'genshin-chrome', 'config.js'))
+  expect(compactHomePath(externalPath, homeDirectory)).toBe(externalPath)
 })
 
 test('validates configuration without executing top-level code', () => {
