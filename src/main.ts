@@ -1,8 +1,10 @@
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, session } from 'electron'
 import { browserChannels } from '#/browser-types.ts'
 import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts'
+import { createConfigEditorController } from '#/config-editor.ts'
+import { commandShortcutKey } from '#/keyboard-shortcuts.ts'
 import { ensureLocalConfig, resolveAppConfig } from '#/local-config.ts'
 import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
@@ -10,6 +12,11 @@ const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
 const configPath = ensureLocalConfig().config
 const configUrl = pathToFileURL(configPath).href
+const configEditor = createConfigEditorController({
+  preloadPath: path.join(currentDirectory, 'config-editor-preload.ts'),
+  rendererDirectory: path.join(projectRoot, 'dist'),
+  devServerUrl: process.env.VITE_DEV_SERVER_URL,
+})
 
 async function loadConfig() {
   try {
@@ -110,11 +117,6 @@ function reportError(error: unknown) {
   console.error(error)
 }
 
-async function openConfig() {
-  const error = await shell.openPath(configPath)
-  if (error) throw new Error(error)
-}
-
 function failFast(error: unknown) {
   reportError(error)
   app.exit(1)
@@ -150,23 +152,18 @@ function sendNavigationState(
   targetWindow.webContents.send(browserChannels.state, state)
 }
 
-function installAddressShortcut(contents: Electron.WebContents, targetWindow: InstanceType<typeof BrowserWindow>) {
+function installBrowserShortcuts(
+  contents: Electron.WebContents,
+  targetWindow: InstanceType<typeof BrowserWindow>,
+  targetView: InstanceType<typeof WebContentsView>,
+) {
   contents.on('before-input-event', (event, input) => {
-    const commandKey = process.platform === 'darwin' ? input.meta : input.control
-    if (
-      input.type !== 'keyDown' ||
-      input.isAutoRepeat ||
-      input.isComposing ||
-      input.shift ||
-      input.alt ||
-      !commandKey ||
-      input.key.toLowerCase() !== 'l'
-    ) {
-      return
-    }
+    const shortcut = commandShortcutKey(input)
+    if (shortcut !== 'l' && shortcut !== 'r') return
 
     event.preventDefault()
-    targetWindow.webContents.send(browserChannels.editAddress)
+    if (shortcut === 'l') targetWindow.webContents.send(browserChannels.editAddress)
+    if (shortcut === 'r' && !targetView.webContents.isDestroyed()) targetView.webContents.reload()
   })
 }
 
@@ -205,8 +202,8 @@ async function createWindow() {
     },
   })
   pageView = targetView
-  installAddressShortcut(window.webContents, window)
-  installAddressShortcut(targetView.webContents, window)
+  installBrowserShortcuts(window.webContents, window, targetView)
+  installBrowserShortcuts(targetView.webContents, window, targetView)
 
   window.contentView.addChildView(targetView)
   targetView.setBackgroundColor(config.window.backgroundColor)
@@ -274,6 +271,7 @@ function revealMainWindow() {
   if (process.platform === 'darwin' && app.isHidden()) app.show()
   if (mainWindow.isMinimized()) mainWindow.restore()
   if (!mainWindow.isVisible()) mainWindow.show()
+  mainWindow.focus()
   return true
 }
 
@@ -283,7 +281,7 @@ ipcMain.handle(browserChannels.navigate, (_event: Electron.IpcMainInvokeEvent, a
 
 ipcMain.on(browserChannels.action, (_event: Electron.IpcMainEvent, action: BrowserAction) => {
   if (action === 'open-config') {
-    void openConfig().catch(failFast)
+    if (mainWindow && !mainWindow.isDestroyed()) void configEditor.open(mainWindow).catch(reportError)
     return
   }
 

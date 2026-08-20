@@ -1,0 +1,157 @@
+import path from 'node:path'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { configEditorChannels } from '#/config-editor-types.ts'
+import { commandShortcutKey } from '#/keyboard-shortcuts.ts'
+import { readLocalConfigSource, saveLocalConfigSourceIfUnchanged } from '#/local-config.ts'
+
+type ConfigEditorControllerOptions = {
+  preloadPath: string
+  rendererDirectory: string
+  devServerUrl?: string
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+export function createConfigEditorController(options: ConfigEditorControllerOptions) {
+  let editorWindow: InstanceType<typeof BrowserWindow> | null = null
+  let editorDirty = false
+  let closeConfirmed = false
+  let closePromptOpen = false
+
+  function clearWindowState(window: InstanceType<typeof BrowserWindow>) {
+    if (editorWindow !== window) return
+    editorWindow = null
+    editorDirty = false
+    closeConfirmed = false
+    closePromptOpen = false
+  }
+
+  function windowForSender(sender: Electron.WebContents) {
+    if (!editorWindow || editorWindow.isDestroyed() || editorWindow.webContents !== sender) {
+      throw new Error('配置编辑器请求来源无效')
+    }
+    return editorWindow
+  }
+
+  function loadEditor(window: InstanceType<typeof BrowserWindow>) {
+    if (!options.devServerUrl) {
+      return window.loadFile(path.join(options.rendererDirectory, 'config-editor.html'))
+    }
+
+    const serverUrl = options.devServerUrl.endsWith('/') ? options.devServerUrl : `${options.devServerUrl}/`
+    return window.loadURL(new URL('config-editor.html', serverUrl).href)
+  }
+
+  ipcMain.handle(configEditorChannels.read, (event: Electron.IpcMainInvokeEvent) => {
+    windowForSender(event.sender)
+    return readLocalConfigSource()
+  })
+
+  ipcMain.handle(
+    configEditorChannels.save,
+    (event: Electron.IpcMainInvokeEvent, source: unknown, expectedSource: unknown) => {
+      windowForSender(event.sender)
+      try {
+        if (typeof source !== 'string' || typeof expectedSource !== 'string') {
+          throw new Error('配置编辑器保存参数无效')
+        }
+        const result = saveLocalConfigSourceIfUnchanged(source, expectedSource)
+        if (!result.ok) {
+          return {
+            ok: false,
+            error: 'config.js 已被其他程序修改，已重新加载最新内容',
+            reloadedSource: result.currentSource,
+          } as const
+        }
+        return { ok: true } as const
+      } catch (error) {
+        return { ok: false, error: errorMessage(error) } as const
+      }
+    },
+  )
+
+  ipcMain.on(configEditorChannels.setDirty, (event: Electron.IpcMainEvent, dirty: unknown) => {
+    if (editorWindow?.webContents === event.sender) editorDirty = dirty === true
+  })
+
+  ipcMain.on(configEditorChannels.requestClose, (event: Electron.IpcMainEvent) => {
+    if (editorWindow?.webContents === event.sender) editorWindow.close()
+  })
+
+  return {
+    async open(parent: InstanceType<typeof BrowserWindow>) {
+      if (editorWindow && !editorWindow.isDestroyed()) {
+        if (editorWindow.isMinimized()) editorWindow.restore()
+        editorWindow.show()
+        editorWindow.focus()
+        return
+      }
+
+      const window = new BrowserWindow({
+        parent,
+        modal: true,
+        width: 820,
+        height: 640,
+        minWidth: 640,
+        minHeight: 480,
+        show: false,
+        backgroundColor: '#f5f5f7',
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 18, y: 18 },
+        ...(process.platform === 'darwin' ? { vibrancy: 'under-window', visualEffectState: 'active' } : {}),
+        webPreferences: {
+          preload: options.preloadPath,
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: false,
+        },
+      })
+      editorWindow = window
+      editorDirty = false
+      closeConfirmed = false
+      closePromptOpen = false
+      window.webContents.on('before-input-event', (event, input) => {
+        if (commandShortcutKey(input) !== 'r') return
+        event.preventDefault()
+      })
+      window.once('ready-to-show', () => window.show())
+      window.on('close', (event) => {
+        if (!editorDirty || closeConfirmed) return
+        event.preventDefault()
+        if (closePromptOpen) return
+        closePromptOpen = true
+
+        void (async () => {
+          try {
+            const { response } = await dialog.showMessageBox(window, {
+              type: 'warning',
+              buttons: ['继续编辑', '放弃更改'],
+              defaultId: 0,
+              cancelId: 0,
+              title: '放弃未保存的更改？',
+              message: '配置尚未保存',
+              detail: '关闭窗口会丢失本次修改。',
+            })
+            if (response !== 1 || window.isDestroyed()) return
+            closeConfirmed = true
+            window.close()
+          } catch (error) {
+            console.error(error)
+          } finally {
+            if (editorWindow === window) closePromptOpen = false
+          }
+        })()
+      })
+      window.on('closed', () => clearWindowState(window))
+      try {
+        await loadEditor(window)
+      } catch (error) {
+        if (!window.isDestroyed()) window.destroy()
+        clearWindowState(window)
+        throw error
+      }
+    },
+  }
+}

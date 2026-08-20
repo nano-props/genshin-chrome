@@ -1,6 +1,9 @@
 import { ChevronLeft, ChevronRight, RotateCw, SlidersHorizontal, Wrench } from '@lucide/vue'
 import { defineComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { BrowserState } from '#/browser-types.ts'
+import { requireWindowBridge } from '#/renderer/window-bridge.ts'
+
+const workbench = requireWindowBridge('workbench')
 
 const IconButton = defineComponent({
   props: {
@@ -42,7 +45,7 @@ export default defineComponent({
     function updateViewportBounds() {
       if (!viewport.value) return
       const rect = viewport.value.getBoundingClientRect()
-      window.workbench.updateViewBounds({
+      workbench.updateViewBounds({
         x: rect.left,
         y: rect.top,
         width: rect.width,
@@ -52,7 +55,7 @@ export default defineComponent({
 
     async function navigate(event: Event) {
       event.preventDefault()
-      draft.value = await window.workbench.navigate(draft.value)
+      draft.value = await workbench.navigate(draft.value)
       editingAddress.value = false
     }
 
@@ -75,8 +78,8 @@ export default defineComponent({
 
     onMounted(() => {
       cleanup.push(
-        window.workbench.onEditAddress(editAddress),
-        window.workbench.onBrowserState((state: BrowserState) => {
+        workbench.onEditAddress(editAddress),
+        workbench.onBrowserState((state: BrowserState) => {
           currentUrl.value = state.url
           if (!editingAddress.value && state.url) draft.value = state.url
           loading.value = state.loading
@@ -101,14 +104,10 @@ export default defineComponent({
       <div class="browser-shell">
         <header class="toolbar">
           <nav class="navigation-controls no-drag" aria-label="浏览器导航">
-            <IconButton label="后退" disabled={!canGoBack.value} onPress={() => window.workbench.browserAction('back')}>
+            <IconButton label="后退" disabled={!canGoBack.value} onPress={() => workbench.browserAction('back')}>
               <ChevronLeft aria-hidden="true" />
             </IconButton>
-            <IconButton
-              label="前进"
-              disabled={!canGoForward.value}
-              onPress={() => window.workbench.browserAction('forward')}
-            >
+            <IconButton label="前进" disabled={!canGoForward.value} onPress={() => workbench.browserAction('forward')}>
               <ChevronRight aria-hidden="true" />
             </IconButton>
           </nav>
@@ -154,7 +153,7 @@ export default defineComponent({
             )}
             {currentUrl.value && (
               <span class="address-inline-action">
-                <IconButton label="刷新" onPress={() => window.workbench.browserAction('reload')}>
+                <IconButton label="刷新" onPress={() => workbench.browserAction('reload')}>
                   <RotateCw aria-hidden="true" />
                 </IconButton>
               </span>
@@ -163,10 +162,10 @@ export default defineComponent({
           </div>
 
           <div class="toolbar-actions no-drag">
-            <IconButton label="打开调试" onPress={() => window.workbench.browserAction('devtools')}>
+            <IconButton label="打开调试" onPress={() => workbench.browserAction('devtools')}>
               <Wrench aria-hidden="true" />
             </IconButton>
-            <IconButton label="打开配置" onPress={() => window.workbench.browserAction('open-config')}>
+            <IconButton label="打开配置" onPress={() => workbench.browserAction('open-config')}>
               <SlidersHorizontal aria-hidden="true" />
             </IconButton>
           </div>

@@ -4,7 +4,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { ensureLocalConfig, resolveAppConfig, resolveLocalConfigPaths } from '#/local-config.ts'
+import {
+  ensureLocalConfig,
+  resolveAppConfig,
+  resolveLocalConfigPaths,
+  saveLocalConfigSource,
+  validateLocalConfigSource,
+} from '#/local-config.ts'
 import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -43,6 +49,7 @@ test.describe('Genshin Chrome smoke tests', () => {
   let replacementHits = 0
   let pageAHits = 0
   let pageBHits = 0
+  let slowStartHits = 0
   let slowStartCompleted = false
   let windowVisibleWhileStartPending = false
   let temporaryDirectory: string
@@ -92,6 +99,7 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     sourceServer = await startServer((request, response) => {
       if (request.url === '/slow-start') {
+        slowStartHits += 1
         setTimeout(() => {
           slowStartCompleted = true
           html(response, '<!doctype html><title>Slow start fixture</title>')
@@ -279,6 +287,23 @@ test.describe('Genshin Chrome smoke tests', () => {
         app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((window) => window.isVisible())),
       )
       .toBe(true)
+
+    const hitsBeforeShortcut = slowStartHits
+    await shell.evaluate(() => {
+      document.documentElement.dataset.shellInstance = 'dock-reload-check'
+    })
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => !window.webContents.isDevToolsOpened())
+        ?.webContents.sendInputEvent({
+          type: 'keyDown',
+          keyCode: 'R',
+          modifiers: [process.platform === 'darwin' ? 'meta' : 'control'],
+        })
+    })
+    await expect.poll(() => slowStartHits).toBe(hitsBeforeShortcut + 1)
+    await expect(displayedAddress()).toHaveText(`${sourceServer.url}/slow-start`)
+    expect(await shell.evaluate(() => document.documentElement.dataset.shellInstance)).toBe('dock-reload-check')
   })
 
   test('restores and remembers the window bounds outside config.js', async () => {
@@ -423,20 +448,176 @@ test.describe('Genshin Chrome smoke tests', () => {
       .toBe(true)
   })
 
-  test('opens the XDG configuration in the default editor', async () => {
-    await app.evaluate(({ shell }) => {
-      shell.openPath = async (targetPath) => {
-        ;(globalThis as typeof globalThis & { openedConfigPath?: string }).openedConfigPath = targetPath
-        return ''
-      }
+  test('edits and validates the XDG configuration in an app modal', async () => {
+    const configPath = path.join(configDirectory, 'config.js')
+    const originalSource = fs.readFileSync(configPath, 'utf8')
+    expect(await shell.evaluate(() => 'configEditor' in window)).toBe(false)
+    await shell.getByRole('button', { name: '打开配置' }).click()
+
+    await expect
+      .poll(() => app.windows().map((page) => page.url()))
+      .toEqual(expect.arrayContaining([expect.stringContaining('config-editor.html')]))
+    const editor = app.windows().find((page) => page.url().includes('config-editor.html'))!
+    await editor.waitForLoadState('domcontentloaded')
+
+    expect(await editor.evaluate(() => 'configEditor' in window && !('workbench' in window))).toBe(true)
+    await expect(editor.getByRole('heading', { name: '配置编辑器' })).toBeVisible()
+    await expect(editor.getByText('config.js · 保存后重启应用生效')).toBeVisible()
+    await expect(editor.locator('.cm-content')).toContainText('slow-start')
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => {
+          const modal = BrowserWindow.getAllWindows().find((window) =>
+            window.webContents.getURL().includes('config-editor.html'),
+          )
+          return Boolean(modal?.isModal() && modal.getParentWindow())
+        }),
+      )
+      .toBe(true)
+
+    const editorContent = editor.locator('.cm-content')
+    await editorContent.click()
+    await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
+    await editor.keyboard.insertText('export default {}')
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().includes('config-editor.html'))
+        ?.webContents.sendInputEvent({
+          type: 'keyDown',
+          keyCode: 'R',
+          modifiers: [process.platform === 'darwin' ? 'meta' : 'control'],
+        })
     })
+    await expect(editorContent).toContainText('export default {}')
+    await editor.getByRole('button', { name: /^保存/ }).click()
+    await expect(editor.getByRole('status')).toContainText('config.js 必须配置 startUrl')
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(originalSource)
+
+    await app.evaluate(({ dialog }) => {
+      const testState = globalThis as typeof globalThis & { configDiscardPromptCount?: number }
+      testState.configDiscardPromptCount = 0
+      dialog.showMessageBox = (async () => {
+        testState.configDiscardPromptCount = (testState.configDiscardPromptCount ?? 0) + 1
+        return { response: 0, checkboxChecked: false }
+      }) as typeof dialog.showMessageBox
+    })
+    await editor.getByRole('button', { name: '取消' }).click()
+    await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(true)
+    await expect
+      .poll(() =>
+        app.evaluate(
+          () => (globalThis as typeof globalThis & { configDiscardPromptCount?: number }).configDiscardPromptCount,
+        ),
+      )
+      .toBe(1)
+
+    const updatedSource = `export default {
+  startUrl: ${JSON.stringify(`${sourceServer.url}/page-a`)},
+  browser: { remoteDebuggingPort: null },
+}
+`
+    const externalSource = `export default {
+  startUrl: ${JSON.stringify(`${sourceServer.url}/page-b`)},
+  browser: { remoteDebuggingPort: null },
+}
+`
+    fs.writeFileSync(configPath, externalSource)
+    await editorContent.click()
+    await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
+    await editor.keyboard.insertText(updatedSource)
+    await expect(editor.getByRole('status')).toContainText('保存前会静态校验语法和可确定的必填项')
+    await editor.getByRole('button', { name: /^保存/ }).click()
+    await expect(editor.getByRole('status')).toContainText('已被其他程序修改，已重新加载最新内容')
+    await expect(editorContent).toContainText('/page-b')
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(externalSource)
+
+    await editorContent.click()
+    await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
+    await editor.keyboard.insertText(updatedSource)
+    await expect(editor.getByRole('status')).toContainText('保存前会静态校验语法和可确定的必填项')
+    await editor.getByRole('button', { name: /^保存/ }).click()
+
+    await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(false)
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(updatedSource)
+
+    const unavailableConfigPath = `${configPath}.unavailable`
+    fs.renameSync(configPath, unavailableConfigPath)
+    try {
+      const failedEditorPromise = app.waitForEvent('window')
+      await shell.getByRole('button', { name: '打开配置' }).click()
+      const failedEditor = await failedEditorPromise
+      await failedEditor.waitForLoadState('domcontentloaded')
+      await expect
+        .poll(() =>
+          app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows().some(
+              (window) => window.getParentWindow() && window.webContents.getURL().includes('config-editor.html'),
+            ),
+          ),
+        )
+        .toBe(true)
+      await expect(failedEditor.getByRole('status')).toContainText('ENOENT')
+      await expect(failedEditor.getByRole('button', { name: /^保存/ })).toBeDisabled()
+      await failedEditor.getByRole('button', { name: '取消' }).click()
+      await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(false)
+    } finally {
+      fs.renameSync(unavailableConfigPath, configPath)
+    }
+
+    const editorHtmlPath = path.join(projectRoot, 'dist', 'config-editor.html')
+    const unavailableEditorHtmlPath = `${editorHtmlPath}.unavailable`
+    await app.evaluate(({ app: electronApp }) => {
+      const state = globalThis as typeof globalThis & { configEditorCreationCount?: number }
+      state.configEditorCreationCount = 0
+      electronApp.on('browser-window-created', (_event, window) => {
+        if (window.getParentWindow()) {
+          state.configEditorCreationCount = (state.configEditorCreationCount ?? 0) + 1
+        }
+      })
+    })
+    fs.renameSync(editorHtmlPath, unavailableEditorHtmlPath)
+    try {
+      await shell.getByRole('button', { name: '打开配置' }).click()
+      await expect
+        .poll(() =>
+          app.evaluate(
+            () => (globalThis as typeof globalThis & { configEditorCreationCount?: number }).configEditorCreationCount,
+          ),
+        )
+        .toBe(1)
+      await expect
+        .poll(() =>
+          app.evaluate(
+            ({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((window) => window.getParentWindow()).length,
+          ),
+        )
+        .toBe(0)
+    } finally {
+      fs.renameSync(unavailableEditorHtmlPath, editorHtmlPath)
+    }
 
     await shell.getByRole('button', { name: '打开配置' }).click()
     await expect
       .poll(() =>
-        app.evaluate(() => (globalThis as typeof globalThis & { openedConfigPath?: string }).openedConfigPath),
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().some(
+            (window) => window.getParentWindow() && window.webContents.getURL().includes('config-editor.html'),
+          ),
+        ),
       )
-      .toBe(path.join(configDirectory, 'config.js'))
+      .toBe(true)
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getParentWindow())
+        ?.close()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((window) => window.getParentWindow()).length,
+        ),
+      )
+      .toBe(0)
   })
 })
 
@@ -455,6 +636,87 @@ test('creates the default ESM configuration once', () => {
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true })
   }
+})
+
+test('validates configuration without executing top-level code', () => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'genshin-chrome-config-validation-'))
+
+  try {
+    const paths = resolveLocalConfigPaths(temporaryDirectory)
+    ensureLocalConfig(paths)
+    const source = `throw new Error('must not run while saving')
+export default { startUrl: 'https://example.com' }
+`
+
+    expect(() => saveLocalConfigSource(source, paths)).not.toThrow()
+    expect(fs.readFileSync(paths.config, 'utf8')).toBe(source)
+    expect(() => saveLocalConfigSource('export default { startUrl: }', paths)).toThrow()
+    expect(fs.readFileSync(paths.config, 'utf8')).toBe(source)
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true })
+  }
+})
+
+test('validates startUrl using JavaScript property override order', () => {
+  expect(() =>
+    validateLocalConfigSource("export default { startUrl: '', startUrl: 'https://example.com' }"),
+  ).not.toThrow()
+  expect(() => validateLocalConfigSource("export default { startUrl: 'https://example.com', startUrl: '' }")).toThrow(
+    'config.js 的 startUrl 必须是非空字符串',
+  )
+  expect(() => validateLocalConfigSource('export default { startUrl() {} }')).toThrow(
+    'config.js 的 startUrl 必须是非空字符串',
+  )
+  expect(() =>
+    validateLocalConfigSource(
+      "const defaults = { startUrl: 'https://example.com' }; export default { startUrl: '', ...defaults }",
+    ),
+  ).not.toThrow()
+  expect(() =>
+    validateLocalConfigSource(
+      "const defaults = { startUrl: 'https://example.com' }; export default { ...defaults, startUrl: '' }",
+    ),
+  ).toThrow('config.js 的 startUrl 必须是非空字符串')
+  expect(() => validateLocalConfigSource("export default { startUrl: '', [1]: true }")).toThrow(
+    'config.js 的 startUrl 必须是非空字符串',
+  )
+  expect(() => validateLocalConfigSource("export default { startUrl: '', [`other`]: true }")).toThrow(
+    'config.js 的 startUrl 必须是非空字符串',
+  )
+  expect(() =>
+    validateLocalConfigSource("const key = 'other'; export default { startUrl: '', [key]: true }"),
+  ).not.toThrow()
+})
+
+test('rejects statically non-object default exports while preserving dynamic configs', () => {
+  for (const source of [
+    'export default null',
+    'export default 42',
+    "export default () => ({ startUrl: 'https://example.com' })",
+    'export default class Config {}',
+    'const config = null; export default config',
+  ]) {
+    expect(() => validateLocalConfigSource(source)).toThrow('config.js 默认导出必须是对象')
+  }
+
+  expect(() =>
+    validateLocalConfigSource(
+      "const base = { startUrl: 'https://example.com' }; const config = base; export default config",
+    ),
+  ).not.toThrow()
+  expect(() => validateLocalConfigSource('const config = createConfig(); export default config')).not.toThrow()
+  expect(() =>
+    validateLocalConfigSource("const config = {}; config.startUrl = 'https://example.com'; export default config"),
+  ).not.toThrow()
+  expect(() =>
+    validateLocalConfigSource(
+      "const config = { startUrl: 'https://example.com' }; config.startUrl = ''; export default config",
+    ),
+  ).not.toThrow()
+  expect(() =>
+    validateLocalConfigSource("let config = null; config = { startUrl: 'https://example.com' }; export default config"),
+  ).not.toThrow()
+  expect(() => validateLocalConfigSource('function config() {}; export default config')).not.toThrow()
 })
 
 test('fills optional config fields from defaults', () => {

@@ -17,7 +17,7 @@ The app creates its ESM configuration on first launch:
 ~/.config/genshin-chrome/config.js
 ```
 
-Set `XDG_CONFIG_HOME` to change the configuration root. Use the toolbar button to open `config.js` in the default editor, then restart the app after editing.
+Set `XDG_CONFIG_HOME` to change the configuration root. Use the toolbar button to open the built-in configuration editor. Without executing the configuration, the editor statically validates its JavaScript syntax and directly knowable required fields before atomically saving `config.js`; restart the app to apply the changes.
 
 Edit the generated object directly. Its synchronous `rewrite` hook may return `null`, `{ url }`, or `{ cancel: true }`. The configuration is fully trusted and errors fail when encountered.
 

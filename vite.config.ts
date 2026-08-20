@@ -14,5 +14,11 @@ export default defineConfig({
   build: {
     outDir: '../../dist',
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(import.meta.dirname, 'src/renderer/index.html'),
+        configEditor: path.resolve(import.meta.dirname, 'src/renderer/config-editor.html'),
+      },
+    },
   },
 })
