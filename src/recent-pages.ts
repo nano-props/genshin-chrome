@@ -2,19 +2,22 @@ import fs from 'node:fs'
 import path from 'node:path'
 import writeFileAtomic from 'write-file-atomic'
 
-export const maximumRecentPages = 10
+export const MAX_RECENT_PAGES = 15
 
 function normalizedUrl(value: string) {
-  return new URL(value).href
+  const url = new URL(value)
+  url.search = ''
+  url.hash = ''
+  return url.href
 }
 
 export function addRecentPage(pages: readonly string[], url: string) {
   const normalized = normalizedUrl(url)
-  return [normalized, ...pages.filter((page) => page !== normalized)].slice(0, maximumRecentPages)
+  return [normalized, ...pages.filter((page) => page !== normalized)].slice(0, MAX_RECENT_PAGES)
 }
 
 export function recentPageLabel(url: string, maximumLength = 72) {
-  const label = new URL(url).href
+  const label = normalizedUrl(url)
   return label.length <= maximumLength ? label : `${label.slice(0, maximumLength - 1)}…`
 }
 
@@ -36,12 +39,13 @@ export function readRecentPages(statePath: string) {
   for (const value of parsed) {
     try {
       const normalized = normalizedUrl(value)
+      if (normalized !== value) throw new Error('Recent page URL is not normalized')
       if (!pages.includes(normalized)) pages.push(normalized)
     } catch {
       throw new Error(`Invalid recent pages state: ${statePath}`)
     }
   }
-  return pages.slice(0, maximumRecentPages)
+  return pages.slice(0, MAX_RECENT_PAGES)
 }
 
 export function writeRecentPages(statePath: string, pages: readonly string[]) {

@@ -1,4 +1,4 @@
-import { AlertCircle, Check, FileCode2 } from '@lucide/vue'
+import { AlertCircle, Check } from '@lucide/vue'
 import { basicSetup, EditorView } from 'codemirror'
 import { javascript } from '@codemirror/lang-javascript'
 import { defineComponent, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -133,13 +133,9 @@ export default defineComponent({
       <div class="config-editor-shell">
         <header class="config-editor-header">
           <div class="config-title-block">
-            <span class="config-icon" aria-hidden="true">
-              <FileCode2 />
-            </span>
-            <div>
-              <h1>配置编辑器</h1>
-              <p>config.js · 保存后重启应用生效</p>
-            </div>
+            <h1>配置编辑器</h1>
+            <span class="config-title-divider" aria-hidden="true" />
+            <p>config.js · 保存后重启应用生效</p>
           </div>
           <span
             class={['dirty-indicator', dirty.value && 'is-visible']}

@@ -11,13 +11,7 @@ import {
   saveLocalConfigSource,
   validateLocalConfigSource,
 } from '#/local-config.ts'
-import {
-  addRecentPage,
-  maximumRecentPages,
-  readRecentPages,
-  recentPageLabel,
-  writeRecentPages,
-} from '#/recent-pages.ts'
+import { addRecentPage, MAX_RECENT_PAGES, readRecentPages, recentPageLabel, writeRecentPages } from '#/recent-pages.ts'
 import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -821,19 +815,21 @@ test('stores a bounded, deduplicated recent page list with readable labels', () 
   try {
     const statePath = path.join(temporaryDirectory, 'state', 'recent-pages.json')
     let pages: string[] = []
-    for (let index = 0; index < maximumRecentPages + 2; index += 1) {
+    for (let index = 0; index < MAX_RECENT_PAGES + 2; index += 1) {
       pages = addRecentPage(pages, `https://example.com/page-${index}`)
     }
-    pages = addRecentPage(pages, 'https://example.com/page-5')
+    pages = addRecentPage(pages, 'https://example.com/page-5?token=secret#section')
 
-    expect(pages).toHaveLength(maximumRecentPages)
+    expect(pages).toHaveLength(MAX_RECENT_PAGES)
     expect(pages[0]).toBe('https://example.com/page-5')
     expect(new Set(pages).size).toBe(pages.length)
-    expect(recentPageLabel('https://example.com/path?query=1')).toBe('https://example.com/path?query=1')
+    expect(recentPageLabel('https://example.com/path?query=1#section')).toBe('https://example.com/path')
     expect(recentPageLabel(`https://example.com/${'long/'.repeat(20)}`)).toMatch(/…$/)
 
     writeRecentPages(statePath, pages)
     expect(readRecentPages(statePath)).toEqual(pages)
+    fs.writeFileSync(statePath, '["https://example.com/path?query=1#section"]\n')
+    expect(() => readRecentPages(statePath)).toThrow('Invalid recent pages state')
     fs.writeFileSync(statePath, '{"invalid":true}\n')
     expect(() => readRecentPages(statePath)).toThrow('Invalid recent pages state')
   } finally {

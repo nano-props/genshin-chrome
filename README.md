@@ -19,7 +19,7 @@ The app creates its ESM configuration on first launch:
 
 Set `XDG_CONFIG_HOME` to change the configuration root. Use the toolbar button to open the built-in configuration editor. Without executing the configuration, the editor statically validates its JavaScript syntax and directly knowable required fields before atomically saving `config.js`; restart the app to apply the changes.
 
-The File menu keeps up to ten recently opened pages, provides a standard Clear Menu action, and can copy the active configuration directory path.
+The File menu keeps up to fifteen recently opened pages, provides a standard Clear Menu action, and can copy the active configuration directory path.
 
 Edit the generated object directly. Its synchronous `rewrite` hook may return `null`, `{ url }`, or `{ cancel: true }`. The configuration is fully trusted and errors fail when encountered.
 
