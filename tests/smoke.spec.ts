@@ -11,6 +11,13 @@ import {
   saveLocalConfigSource,
   validateLocalConfigSource,
 } from '#/local-config.ts'
+import {
+  addRecentPage,
+  maximumRecentPages,
+  readRecentPages,
+  recentPageLabel,
+  writeRecentPages,
+} from '#/recent-pages.ts'
 import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -448,6 +455,47 @@ test.describe('Genshin Chrome smoke tests', () => {
       .toBe(true)
   })
 
+  test('opens and clears recent pages from the native File menu', async () => {
+    const pageAUrl = `${sourceServer.url}/page-a`
+    const pageBUrl = `${sourceServer.url}/page-b`
+
+    for (const url of [pageAUrl, pageBUrl]) {
+      const address = await editAddress()
+      await address.fill(url)
+      await address.press('Enter')
+      await waitForTarget(url)
+    }
+
+    const recentItems = await app.evaluate(({ Menu }) => {
+      const recentMenu = Menu.getApplicationMenu()?.getMenuItemById('recent-pages')?.submenu
+      return recentMenu?.items.map((item) => ({ label: item.label, toolTip: item.toolTip })) ?? []
+    })
+    expect(recentItems.slice(0, 2).map((item) => item.toolTip)).toEqual([pageBUrl, pageAUrl])
+
+    await app.evaluate(({ BrowserWindow, Menu }, targetUrl) => {
+      const recentMenu = Menu.getApplicationMenu()?.getMenuItemById('recent-pages')?.submenu
+      const item = recentMenu?.items.find((candidate) => candidate.toolTip === targetUrl)
+      if (!item?.click) throw new Error('Recent page menu item was not found')
+      item.click(item, BrowserWindow.getFocusedWindow() ?? undefined, {} as Electron.KeyboardEvent)
+    }, pageAUrl)
+    await waitForTarget(pageAUrl)
+    await expect(displayedAddress()).toHaveText(pageAUrl)
+
+    await app.evaluate(({ BrowserWindow, Menu }) => {
+      const item = Menu.getApplicationMenu()?.getMenuItemById('clear-recent-pages')
+      if (!item?.click) throw new Error('Clear recent pages menu item was not found')
+      item.click(item, BrowserWindow.getFocusedWindow() ?? undefined, {} as Electron.KeyboardEvent)
+    })
+    expect(JSON.parse(fs.readFileSync(path.join(userDataDirectory, 'state', 'recent-pages.json'), 'utf8'))).toEqual([])
+    expect(
+      await app.evaluate(({ Menu }) =>
+        Menu.getApplicationMenu()
+          ?.getMenuItemById('recent-pages')
+          ?.submenu?.items.map((item) => ({ label: item.label, enabled: item.enabled })),
+      ),
+    ).toEqual([{ label: '无最近项目', enabled: false }])
+  })
+
   test('edits and validates the XDG configuration in an app modal', async () => {
     const configPath = path.join(configDirectory, 'config.js')
     const originalSource = fs.readFileSync(configPath, 'utf8')
@@ -558,7 +606,11 @@ test.describe('Genshin Chrome smoke tests', () => {
         .toBe(true)
       await expect(failedEditor.getByRole('status')).toContainText('ENOENT')
       await expect(failedEditor.getByRole('button', { name: /^保存/ })).toBeDisabled()
-      await failedEditor.getByRole('button', { name: '取消' }).click()
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()
+          .find((window) => window.webContents.getURL().includes('config-editor.html'))
+          ?.close()
+      })
       await expect.poll(() => app.windows().some((page) => page.url().includes('config-editor.html'))).toBe(false)
     } finally {
       fs.renameSync(unavailableConfigPath, configPath)
@@ -652,6 +704,32 @@ export default { startUrl: 'https://example.com' }
     expect(fs.readFileSync(paths.config, 'utf8')).toBe(source)
     expect(() => saveLocalConfigSource('export default { startUrl: }', paths)).toThrow()
     expect(fs.readFileSync(paths.config, 'utf8')).toBe(source)
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true })
+  }
+})
+
+test('stores a bounded, deduplicated recent page list with readable labels', () => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'genshin-chrome-recent-pages-'))
+
+  try {
+    const statePath = path.join(temporaryDirectory, 'state', 'recent-pages.json')
+    let pages: string[] = []
+    for (let index = 0; index < maximumRecentPages + 2; index += 1) {
+      pages = addRecentPage(pages, `https://example.com/page-${index}`)
+    }
+    pages = addRecentPage(pages, 'https://example.com/page-5')
+
+    expect(pages).toHaveLength(maximumRecentPages)
+    expect(pages[0]).toBe('https://example.com/page-5')
+    expect(new Set(pages).size).toBe(pages.length)
+    expect(recentPageLabel('https://example.com/path?query=1')).toBe('https://example.com/path?query=1')
+    expect(recentPageLabel(`https://example.com/${'long/'.repeat(20)}`)).toMatch(/…$/)
+
+    writeRecentPages(statePath, pages)
+    expect(readRecentPages(statePath)).toEqual(pages)
+    fs.writeFileSync(statePath, '{"invalid":true}\n')
+    expect(() => readRecentPages(statePath)).toThrow('Invalid recent pages state')
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true })
   }

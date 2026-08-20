@@ -1,16 +1,19 @@
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { app, BrowserWindow, WebContentsView, ipcMain, session } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, session } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import { browserChannels } from '#/browser-types.ts'
 import type { BrowserAction, BrowserState, ViewBounds } from '#/browser-types.ts'
 import { createConfigEditorController } from '#/config-editor.ts'
 import { commandShortcutKey } from '#/keyboard-shortcuts.ts'
 import { ensureLocalConfig, resolveAppConfig } from '#/local-config.ts'
+import { addRecentPage, readRecentPages, recentPageLabel, writeRecentPages } from '#/recent-pages.ts'
 import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
-const configPath = ensureLocalConfig().config
+const configPaths = ensureLocalConfig()
+const configPath = configPaths.config
 const configUrl = pathToFileURL(configPath).href
 const configEditor = createConfigEditorController({
   preloadPath: path.join(currentDirectory, 'config-editor-preload.ts'),
@@ -40,10 +43,15 @@ if (process.env.GENSHIN_CHROME_USER_DATA_DIR) {
 
 let mainWindow: InstanceType<typeof BrowserWindow> | null = null
 let pageView: InstanceType<typeof WebContentsView> | null = null
+let recentPages: string[] = []
 const interceptedSessions = new WeakSet<Electron.Session>()
 
 function windowStatePath() {
   return path.join(app.getPath('userData'), 'state', 'window.json')
+}
+
+function recentPagesStatePath() {
+  return path.join(app.getPath('userData'), 'state', 'recent-pages.json')
 }
 
 function initialWindowOptions() {
@@ -117,6 +125,98 @@ function reportError(error: unknown) {
   console.error(error)
 }
 
+function recentPagesSubmenu(): MenuItemConstructorOptions[] {
+  if (!recentPages.length) return [{ label: '无最近项目', enabled: false }]
+
+  return [
+    ...recentPages.map((url, index): MenuItemConstructorOptions => ({
+      id: `recent-page-${index}`,
+      label: recentPageLabel(url),
+      toolTip: url,
+      click: () => openRecentPage(url),
+    })),
+    { type: 'separator' },
+    {
+      id: 'clear-recent-pages',
+      label: '清除菜单',
+      click: () => {
+        recentPages = []
+        try {
+          writeRecentPages(recentPagesStatePath(), recentPages)
+        } catch (error) {
+          reportError(error)
+        }
+        installApplicationMenu()
+      },
+    },
+  ]
+}
+
+function reloadCurrentPage(ignoreCache = false) {
+  if (!pageView || pageView.webContents.isDestroyed()) return
+  if (ignoreCache) pageView.webContents.reloadIgnoringCache()
+  else pageView.webContents.reload()
+}
+
+function installApplicationMenu() {
+  const template: MenuItemConstructorOptions[] = []
+  if (process.platform === 'darwin') template.push({ role: 'appMenu' })
+  template.push(
+    {
+      label: '文件',
+      submenu: [
+        { id: 'recent-pages', label: '最近打开', submenu: recentPagesSubmenu() },
+        { type: 'separator' },
+        {
+          id: 'copy-config-path',
+          label: '复制配置路径',
+          click: () => clipboard.writeText(configPaths.directory),
+        },
+        { type: 'separator' },
+        { role: process.platform === 'darwin' ? 'close' : 'quit' },
+      ],
+    },
+    { role: 'editMenu' },
+    {
+      label: '显示',
+      submenu: [
+        { label: '重新加载页面', accelerator: 'CmdOrCtrl+R', click: () => reloadCurrentPage() },
+        {
+          label: '强制重新加载页面',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => reloadCurrentPage(true),
+        },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    { role: 'windowMenu' },
+  )
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+function recordRecentPage(url: string) {
+  try {
+    const parsed = new URL(url)
+    if (!config.browser.allowedProtocols.includes(parsed.protocol)) return
+    const nextPages = addRecentPage(recentPages, parsed.href)
+    if (nextPages.every((page, index) => page === recentPages[index])) return
+    recentPages = nextPages
+    installApplicationMenu()
+    try {
+      writeRecentPages(recentPagesStatePath(), recentPages)
+    } catch (error) {
+      reportError(error)
+    }
+  } catch (error) {
+    reportError(error)
+  }
+}
+
 function failFast(error: unknown) {
   reportError(error)
   app.exit(1)
@@ -167,7 +267,7 @@ function installBrowserShortcuts(
   })
 }
 
-async function createWindow() {
+async function createWindow(initialAddress = config.startUrl) {
   const initialOptions = initialWindowOptions()
   const window = new BrowserWindow({
     backgroundColor: config.window.backgroundColor,
@@ -227,8 +327,14 @@ async function createWindow() {
   const reportNavigationState = () => sendNavigationState(targetView, window)
   targetView.webContents.on('did-start-loading', reportNavigationState)
   targetView.webContents.on('did-stop-loading', reportNavigationState)
-  targetView.webContents.on('did-navigate', reportNavigationState)
-  targetView.webContents.on('did-navigate-in-page', reportNavigationState)
+  targetView.webContents.on('did-navigate', (_event, url) => {
+    reportNavigationState()
+    recordRecentPage(url)
+  })
+  targetView.webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
+    reportNavigationState()
+    if (isMainFrame) recordRecentPage(url)
+  })
 
   let saveWindowBoundsTimer: ReturnType<typeof setTimeout> | undefined
   const saveWindowBounds = () => {
@@ -262,7 +368,7 @@ async function createWindow() {
   await loadShell(window)
   if (window.isDestroyed()) return
 
-  loadRemoteTarget(config.startUrl, targetView)
+  loadRemoteTarget(initialAddress, targetView)
 }
 
 function revealMainWindow() {
@@ -273,6 +379,14 @@ function revealMainWindow() {
   if (!mainWindow.isVisible()) mainWindow.show()
   mainWindow.focus()
   return true
+}
+
+function openRecentPage(url: string) {
+  if (!revealMainWindow()) {
+    void createWindow(url).catch(reportError)
+    return
+  }
+  loadRemoteTarget(url, currentPageView())
 }
 
 ipcMain.handle(browserChannels.navigate, (_event: Electron.IpcMainInvokeEvent, address: unknown) => {
@@ -307,6 +421,12 @@ ipcMain.on(browserChannels.bounds, (_event: Electron.IpcMainEvent, bounds: ViewB
 })
 
 app.whenReady().then(() => {
+  try {
+    recentPages = readRecentPages(recentPagesStatePath())
+  } catch (error) {
+    reportError(error)
+  }
+  installApplicationMenu()
   void createWindow().catch(failFast)
   app.on('activate', () => {
     if (!revealMainWindow()) void createWindow().catch(failFast)
