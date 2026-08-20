@@ -33,48 +33,26 @@ button {
 }
 
 .config-editor-header {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 18px 0 78px;
+  justify-content: flex-end;
+  padding: 0 18px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.09);
   background: rgba(247, 247, 249, 0.72);
   -webkit-app-region: drag;
   backdrop-filter: saturate(180%) blur(24px);
 }
 
-.config-title-block {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 9px;
-}
-
-.config-title-block h1,
-.config-title-block p {
+.config-editor-header h1 {
+  position: absolute;
+  left: 50%;
   margin: 0;
-}
-
-.config-title-block h1 {
-  flex: 0 0 auto;
+  transform: translateX(-50%);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-
-.config-title-block p {
-  overflow: hidden;
-  color: rgba(60, 60, 67, 0.56);
-  font-size: 11px;
-  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.config-title-divider {
-  width: 1px;
-  height: 12px;
-  flex: 0 0 auto;
-  background: rgba(60, 60, 67, 0.2);
 }
 
 .dirty-indicator {
@@ -183,48 +161,56 @@ button {
 }
 
 .editor-button {
+  appearance: none;
   display: inline-flex;
   height: 32px;
-  min-width: 68px;
+  min-width: 66px;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 0 13px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: var(--config-radius-control);
-  color: #2f2f32;
-  background: rgba(255, 255, 255, 0.74);
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+  color: #3f3f46;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.08);
   cursor: default;
   transition:
     background-color var(--config-motion-fast) ease-out,
-    border-color var(--config-motion-fast) ease-out;
+    border-color var(--config-motion-fast) ease-out,
+    box-shadow var(--config-motion-fast) ease-out;
 }
 
 .editor-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.96);
+  background: #f4f4f5;
 }
 
 .editor-button:active:not(:disabled) {
-  background: rgba(0, 0, 0, 0.055);
+  background: #e4e4e7;
 }
 
 .editor-button:focus-visible {
-  outline: 3px solid rgba(0, 122, 255, 0.24);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow:
+    0 0 0 2px #f5f5f7,
+    0 0 0 4px rgba(110, 86, 207, 0.55);
 }
 
 .editor-button.is-primary {
-  border-color: rgba(0, 93, 204, 0.72);
+  border-color: #6e56cf;
   color: #fff;
-  background: #1477d4;
+  background: #6e56cf;
+  box-shadow: 0 1px 2px rgba(46, 32, 101, 0.22);
 }
 
 .editor-button.is-primary:hover:not(:disabled) {
-  background: #086bc5;
+  border-color: #654dc4;
+  background: #654dc4;
 }
 
 .editor-button.is-primary:active:not(:disabled) {
-  background: #0562b7;
+  border-color: #5742b2;
+  background: #5742b2;
 }
 
 .editor-button:disabled {

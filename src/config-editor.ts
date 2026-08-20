@@ -3,11 +3,13 @@ import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { configEditorChannels } from '#/config-editor-types.ts'
 import { commandShortcutKey } from '#/keyboard-shortcuts.ts'
 import { readLocalConfigSource, saveLocalConfigSourceIfUnchanged } from '#/local-config.ts'
+import { readWindowBounds, trackWindowBounds } from '#/window-state.ts'
 
 type ConfigEditorControllerOptions = {
   preloadPath: string
   rendererDirectory: string
   devServerUrl?: string
+  windowStatePath: () => string
 }
 
 type ConfigEditorSession = {
@@ -20,6 +22,11 @@ type ConfigEditorSession = {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+const defaultConfigEditorSize = {
+  width: 820,
+  height: 640,
 }
 
 export function createConfigEditorController(options: ConfigEditorControllerOptions) {
@@ -101,9 +108,10 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
         clearWindowState(existingWindow)
       }
 
+      const windowStatePath = options.windowStatePath()
+      const initialBounds = readWindowBounds(windowStatePath) ?? defaultConfigEditorSize
       const window = new BrowserWindow({
-        width: 820,
-        height: 640,
+        ...initialBounds,
         minWidth: 640,
         minHeight: 480,
         title: '配置编辑器',
@@ -131,6 +139,7 @@ export function createConfigEditorController(options: ConfigEditorControllerOpti
         closePromptOpen: false,
       }
       session = currentSession
+      trackWindowBounds(window, windowStatePath, console.error)
       window.webContents.on('before-input-event', (event, input) => {
         if (commandShortcutKey(input) !== 'r') return
         event.preventDefault()

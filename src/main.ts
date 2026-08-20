@@ -8,7 +8,7 @@ import { createConfigEditorController } from '#/config-editor.ts'
 import { commandShortcutKey } from '#/keyboard-shortcuts.ts'
 import { ensureLocalConfig, resolveAppConfig } from '#/local-config.ts'
 import { addRecentPage, readRecentPages, recentPageLabel, writeRecentPages } from '#/recent-pages.ts'
-import { defaultWindowSize, minimumWindowWidth, readWindowBounds, writeWindowBounds } from '#/window-state.ts'
+import { defaultWindowSize, minimumWindowWidth, readWindowBounds, trackWindowBounds } from '#/window-state.ts'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(currentDirectory, '..')
@@ -19,6 +19,7 @@ const configEditor = createConfigEditorController({
   preloadPath: path.join(currentDirectory, 'config-editor-preload.ts'),
   rendererDirectory: path.join(projectRoot, 'dist'),
   devServerUrl: process.env.VITE_DEV_SERVER_URL,
+  windowStatePath: () => path.join(app.getPath('userData'), 'state', 'config-editor-window.json'),
 })
 
 async function loadConfig() {
@@ -336,28 +337,9 @@ async function createWindow(initialAddress = config.startUrl) {
     if (isMainFrame) recordRecentPage(url)
   })
 
-  let saveWindowBoundsTimer: ReturnType<typeof setTimeout> | undefined
-  const saveWindowBounds = () => {
-    const bounds = window.getNormalBounds()
-    try {
-      writeWindowBounds(windowStatePath(), bounds)
-    } catch (error) {
-      reportError(error)
-    }
-  }
-  const scheduleWindowBoundsSave = () => {
-    if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
-    saveWindowBoundsTimer = setTimeout(saveWindowBounds, 250)
-  }
-  window.on('move', scheduleWindowBoundsSave)
-  window.on('resize', scheduleWindowBoundsSave)
-  window.on('close', () => {
-    if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
-    saveWindowBounds()
-  })
+  trackWindowBounds(window, windowStatePath(), reportError)
 
   window.on('closed', () => {
-    if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
     if (!targetView.webContents.isDestroyed()) targetView.webContents.close()
     if (mainWindow === window) {
       mainWindow = null

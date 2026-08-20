@@ -58,6 +58,7 @@ test.describe('Genshin Chrome smoke tests', () => {
   let configDirectory: string
   let userDataDirectory: string
   let windowStateFile: string
+  let configEditorWindowStateFile: string
 
   async function waitForTarget(url: string) {
     await expect
@@ -160,6 +161,7 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     userDataDirectory = path.join(temporaryDirectory, 'user-data')
     windowStateFile = path.join(userDataDirectory, 'state', 'window.json')
+    configEditorWindowStateFile = path.join(userDataDirectory, 'state', 'config-editor-window.json')
     writeWindowBounds(windowStateFile, { x: 100, y: 100, width: 900, height: 640 })
 
     app = await electron.launch({
@@ -504,7 +506,19 @@ test.describe('Genshin Chrome smoke tests', () => {
 
     expect(await editor.evaluate(() => 'configEditor' in window && !('workbench' in window))).toBe(true)
     await expect(editor.getByRole('heading', { name: '配置编辑器' })).toBeVisible()
-    await expect(editor.getByText('config.js · 保存后重启应用生效')).toBeVisible()
+    await expect(editor.locator('.config-editor-header p')).toHaveCount(0)
+    await expect(editor.getByRole('toolbar', { name: '配置操作' })).toBeVisible()
+    const titlePosition = await editor.evaluate(() => {
+      const headerBounds = document.querySelector('.config-editor-header')?.getBoundingClientRect()
+      const titleBounds = document.querySelector('.config-editor-header h1')?.getBoundingClientRect()
+      if (!headerBounds || !titleBounds) throw new Error('Config editor title bar was not found')
+      return {
+        distanceFromLeft: titleBounds.left - headerBounds.left,
+        centerOffset: titleBounds.left + titleBounds.width / 2 - (headerBounds.left + headerBounds.width / 2),
+      }
+    })
+    expect(titlePosition.distanceFromLeft).toBeGreaterThan(120)
+    expect(Math.abs(titlePosition.centerOffset)).toBeLessThan(0.5)
     await expect(editor.locator('.cm-content')).toContainText('slow-start')
     await expect
       .poll(() =>
@@ -523,6 +537,19 @@ test.describe('Genshin Chrome smoke tests', () => {
         }),
       )
       .toBe(true)
+    await app.evaluate(({ BrowserWindow }) => {
+      const editorWindow = BrowserWindow.getAllWindows().find((window) => window.getTitle() === '配置编辑器')
+      if (!editorWindow) throw new Error('Config editor window was not found')
+      editorWindow.setBounds({ x: 140, y: 160, width: 760, height: 560 })
+    })
+    await expect
+      .poll(() => readWindowBounds(configEditorWindowStateFile))
+      .toEqual({
+        x: 140,
+        y: 160,
+        width: 760,
+        height: 560,
+      })
     const editorWindowId = await app.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows().find((candidate) => candidate.getTitle() === '配置编辑器')
       if (!window) throw new Error('Config editor window was not found')
@@ -692,6 +719,13 @@ test.describe('Genshin Chrome smoke tests', () => {
           ),
         )
         .toBe(true)
+      expect(
+        await app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .find((window) => window.webContents.getURL().includes('config-editor.html'))
+            ?.getNormalBounds(),
+        ),
+      ).toEqual({ x: 140, y: 160, width: 760, height: 560 })
       await expect(failedEditor.getByRole('status')).toContainText('ENOENT')
       await expect(failedEditor.getByRole('button', { name: /^保存/ })).toBeDisabled()
       await app.evaluate(({ BrowserWindow }) => {

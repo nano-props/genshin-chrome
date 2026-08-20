@@ -1,6 +1,7 @@
 import { AlertCircle, Check } from '@lucide/vue'
 import { basicSetup, EditorView } from 'codemirror'
 import { javascript } from '@codemirror/lang-javascript'
+import { ToolbarButton, ToolbarRoot } from 'reka-ui'
 import { defineComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { requireWindowBridge } from '#/renderer/window-bridge.ts'
 
@@ -132,11 +133,7 @@ export default defineComponent({
     return () => (
       <div class="config-editor-shell">
         <header class="config-editor-header">
-          <div class="config-title-block">
-            <h1>配置编辑器</h1>
-            <span class="config-title-divider" aria-hidden="true" />
-            <p>config.js · 保存后重启应用生效</p>
-          </div>
+          <h1>配置编辑器</h1>
           <span
             class={['dirty-indicator', dirty.value && 'is-visible']}
             aria-label={dirty.value ? '有未保存的更改' : ''}
@@ -163,20 +160,24 @@ export default defineComponent({
                 </>
               )}
             </div>
-            <div class="config-editor-actions">
-              <button class="editor-button" type="button" onClick={() => configEditor.requestClose()}>
-                取消
-              </button>
-              <button
-                class="editor-button is-primary"
-                type="button"
-                disabled={loading.value || saving.value || !editor}
-                onClick={save}
-              >
-                {saving.value ? '正在保存…' : '保存'}
-                <kbd>⌘S</kbd>
-              </button>
-            </div>
+            <ToolbarRoot class="config-editor-actions" aria-label="配置操作" loop>
+              <ToolbarButton asChild>
+                <button class="editor-button" type="button" onClick={() => configEditor.requestClose()}>
+                  取消
+                </button>
+              </ToolbarButton>
+              <ToolbarButton asChild disabled={loading.value || saving.value || !editor}>
+                <button
+                  class="editor-button is-primary"
+                  type="button"
+                  disabled={loading.value || saving.value || !editor}
+                  onClick={save}
+                >
+                  {saving.value ? '正在保存…' : '保存'}
+                  <kbd>⌘S</kbd>
+                </button>
+              </ToolbarButton>
+            </ToolbarRoot>
           </footer>
         </main>
       </div>

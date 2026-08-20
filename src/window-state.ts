@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { BrowserWindow } from 'electron'
 import * as v from 'valibot'
 import writeFileAtomic from 'write-file-atomic'
 
@@ -40,4 +41,30 @@ export function readWindowBounds(statePath: string): WindowBounds | null {
 export function writeWindowBounds(statePath: string, bounds: WindowBounds) {
   fs.mkdirSync(path.dirname(statePath), { recursive: true })
   writeFileAtomic.sync(statePath, `${JSON.stringify(bounds, null, 2)}\n`)
+}
+
+export function trackWindowBounds(window: BrowserWindow, statePath: string, reportError: (error: unknown) => void) {
+  let saveTimer: ReturnType<typeof setTimeout> | undefined
+
+  const save = () => {
+    try {
+      writeWindowBounds(statePath, window.getNormalBounds())
+    } catch (error) {
+      reportError(error)
+    }
+  }
+  const scheduleSave = () => {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(save, 250)
+  }
+
+  window.on('move', scheduleSave)
+  window.on('resize', scheduleSave)
+  window.on('close', () => {
+    if (saveTimer) clearTimeout(saveTimer)
+    save()
+  })
+  window.on('closed', () => {
+    if (saveTimer) clearTimeout(saveTimer)
+  })
 }
